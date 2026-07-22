@@ -154,24 +154,30 @@ refinement turns.
 
 Goal: the ~200-line MV3 shell, done once, correctly.
 
-- [ ] `manifest.json`: MV3, `storage` permission only, content script matched to
+- [x] `manifest.json`: MV3, `storage` permission only, content script matched to
       `https://*.gorgias.com/app/*`, `run_at: document_idle`.
-- [ ] Ticket detection: regex on `location.pathname` (`/app/ticket/{id}`); hook
+- [x] Ticket detection: regex on `location.pathname` (`/app/views/{viewId}/{ticketId}`,
+      verified against the live account; `/app/ticket/{id}` kept as a fallback); hooks
       `pushState`/`replaceState` + `popstate`; debounced MutationObserver fallback.
-- [ ] Mount: single persistent iframe (`allow="clipboard-write"`), anchor-probe list
-      from `/v1/config`, floating-panel fallback; on ticket change postMessage new
-      context — **never recreate the iframe**.
-- [ ] Origin-pinned messaging both directions; `storage`-held dev override for
-      `PANEL_ORIGIN` → `http://localhost:5173`.
-- [ ] Dock/floating telemetry to `/v1/telemetry/anchor`.
-- [ ] **Manual test checklist** (in-repo markdown) instead of a Playwright rig:
-      ticket-ID detection across SPA navigations, mount/unmount, floating fallback,
-      clipboard write, ticket switch keeps session. Run it before each of the rare
-      extension releases. (Automate with Playwright later only if shell churn ever
-      makes the manual run tedious — by design it shouldn't.)
+      9 unit tests over the real URL shapes.
+- [x] Mount: single persistent iframe (`allow="clipboard-write"`), anchor-probe list
+      from `/v1/config`, floating-panel fallback (+ hide/show toggle); on ticket change
+      postMessage new context — **never recreates the iframe**.
+- [x] Origin-pinned messaging both directions (shell passes its origin as
+      `?shellOrigin=`; the panel validates it against Gorgias/loopback and replies only
+      there); `storage`-held overrides for `panelOrigin` / `apiOrigin`.
+- [x] Dock/floating telemetry to `/v1/telemetry/anchor`. `/v1/config` and
+      `/v1/telemetry/anchor` are unauthenticated — the shell holds no credentials by
+      design and neither endpoint carries ticket data or PII. This also makes the
+      **kill switch** usable, which matters when testing against a live helpdesk.
+- [x] **Manual test checklist** — `docs/extension-manual-test-checklist.md`: 13 checks
+      covering ticket detection across SPA navigations, single-iframe reuse, hide/show,
+      clipboard, kill switch, and "no ticket content leaves via the page".
 
-Exit criteria: load-unpacked extension on the Gorgias sandbox shows the local panel,
-survives ticket navigation, docks (or falls back to floating), checklist passes.
+Exit criteria: load-unpacked extension shows the local panel on a Gorgias ticket,
+survives ticket navigation, falls back to floating, checklist passes. **Code complete
+and unit-tested; the in-Chrome checklist run is pending** (it needs a signed-in Gorgias
+session, so it's a human step).
 
 ## Stage 6 — Deployment
 

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { requestDraft } from './lib/api';
-import { copilotReady, parseCopilotContext } from './lib/contract';
+import { copilotReady, parseCopilotContext, resolveShellOrigin } from './lib/contract';
 import {
   initialState,
   type PanelContext,
@@ -11,6 +11,8 @@ import {
 } from './lib/state';
 
 const TOKEN_KEY = 'copilot:token';
+// The one origin this panel exchanges messages with: the extension shell, or the dev harness.
+const SHELL_ORIGIN = resolveShellOrigin();
 
 let token = $state(
   sessionStorage.getItem(TOKEN_KEY) ?? (import.meta.env.DEV ? 'local-dev-token' : ''),
@@ -41,8 +43,8 @@ $effect(() => {
 
 onMount(() => {
   const handler = (event: MessageEvent) => {
-    // Origin-pinned: the dev harness posts from the panel's own origin. Prod adds the shell origin.
-    if (event.origin !== window.location.origin) return;
+    // Origin-pinned in both directions — never '*'.
+    if (event.origin !== SHELL_ORIGIN) return;
 
     const parsed = parseCopilotContext(event.data);
     if (!parsed) return;
@@ -55,7 +57,7 @@ onMount(() => {
   };
 
   window.addEventListener('message', handler);
-  window.parent.postMessage(copilotReady, window.location.origin);
+  window.parent.postMessage(copilotReady, SHELL_ORIGIN);
   return () => window.removeEventListener('message', handler);
 });
 

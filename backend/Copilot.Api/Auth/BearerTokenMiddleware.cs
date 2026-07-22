@@ -10,11 +10,18 @@ namespace Copilot.Api.Auth;
 /// </summary>
 public sealed class BearerTokenMiddleware(RequestDelegate next, IOptions<ApiOptions> options)
 {
+    /// <summary>
+    /// Shell-facing endpoints, reachable without a token: the extension holds no
+    /// credentials by design. Neither carries ticket data or PII — config is feature
+    /// flags plus anchor selectors (including the kill switch), telemetry is dock mode.
+    /// </summary>
+    private static readonly string[] s_publicPaths = ["/v1/config", "/v1/telemetry/anchor"];
+
     private readonly byte[] _expectedToken = Encoding.UTF8.GetBytes(options.Value.BearerToken);
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!context.Request.Path.StartsWithSegments("/v1"))
+        if (!context.Request.Path.StartsWithSegments("/v1") || IsPublic(context.Request.Path))
         {
             await next(context);
             return;
@@ -28,6 +35,9 @@ public sealed class BearerTokenMiddleware(RequestDelegate next, IOptions<ApiOpti
 
         await next(context);
     }
+
+    private static bool IsPublic(PathString path) =>
+        s_publicPaths.Any(publicPath => path.StartsWithSegments(publicPath));
 
     private bool IsAuthorized(string authorizationHeader)
     {

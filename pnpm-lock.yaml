@@ -23,6 +23,9 @@ importers:
       vite:
         specifier: ^7.0.0
         version: 7.3.6(@types/node@26.1.1)
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.1)(vite@7.3.6(@types/node@26.1.1))
 
   panel:
     devDependencies:

@@ -1,0 +1,49 @@
+/* Styles for the shell-mounted iframe. Scoped to our own element ids so we never
+   restyle Gorgias's own markup. */
+
+#copilot-panel-frame {
+  border: none;
+  width: 400px;
+  background: #fff;
+}
+
+/* Floating fallback: used when no dock anchor matches (the default today). */
+#copilot-panel-frame.copilot-floating {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  z-index: 2147483000;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.15);
+}
+
+#copilot-panel-frame.copilot-docked {
+  height: 100%;
+  align-self: stretch;
+  border-left: 1px solid #d5d5d5;
+}
+
+#copilot-panel-frame.copilot-hidden {
+  display: none;
+}
+
+/* Toggle button, only shown alongside the floating panel. */
+#copilot-panel-toggle {
+  position: fixed;
+  top: 12px;
+  right: 412px;
+  z-index: 2147483001;
+  font:
+    600 12px system-ui,
+    sans-serif;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #2b6cb0;
+  background: #2b6cb0;
+  color: #fff;
+  cursor: pointer;
+}
+
+#copilot-panel-toggle.copilot-collapsed {
+  right: 12px;
+}

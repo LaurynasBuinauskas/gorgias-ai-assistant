@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Gorgias AI Copilot",
+  "version": "0.1.0",
+  "description": "Mounts the Copilot drafting panel beside the Gorgias ticket view.",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://*.gorgias.com/app/*"],
+      "js": ["inject.js"],
+      "css": ["panel.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
