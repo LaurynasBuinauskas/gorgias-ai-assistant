@@ -96,29 +96,32 @@ relevant chunks; you know roughly where the relevance-gate threshold sits.
 
 Goal: the actual product logic — ticket in, grounded draft (or honest refusal) out.
 
-- [ ] `Copilot.Ai`: provider wiring via `Microsoft.Extensions.AI` only, models pinned
-      to dated snapshots in config. **One provider** for now — the abstraction is the
-      seam; add a fallback provider only if the pilot hits real outages. Use the
-      drafting model for language detection too (one extra cheap call or part of the
-      draft prompt) instead of wiring a separate classifier model.
-- [ ] `Copilot.Pipeline`: detect language of newest customer message (pin it on
-      output) → retrieve → relevance gate (below threshold ⇒ `InsufficientKnowledge`,
-      **no LLM call**) → draft from ticket context + retrieved chunks.
+**Built as "Stage 3-lite" for the demo** (drafts from ticket content alone, no RAG —
+there are no SOP/FAQ documents yet). Retrieval + gate wait on Stage 2; refinement turns
+and the eval harness are still open. `IKnowledgeStore` seam stays reserved so retrieval
+slots in ahead of the LLM call without reworking the pipeline.
+
+- [x] `Copilot.Ai`: provider wiring via `Microsoft.Extensions.AI` only (OpenAI),
+      `IChatClient` behind `AddAi()`, model pinned to a dated snapshot in config.
+      Drafting model also handles language (via the prompt) — no separate classifier.
+- [~] `Copilot.Pipeline`: detect language (pinned on output) → **[deferred: retrieve →
+      relevance gate]** → draft from ticket context. Internal notes excluded from the
+      prompt; empty/absent customer message ⇒ typed `InsufficientKnowledge`.
 - [ ] Refinement turns: `POST /v1/drafts/{draftId}/messages`, **stateless** — the panel
       sends the full conversation history with each request; nothing persisted
-      server-side (no PII at rest, no retention job).
-- [ ] Prompt templates versioned in-repo. Log token usage per request (App Insights) —
-      that's enough metering for a single-tenant pilot; no per-tenant quota system.
+      server-side (no PII at rest, no retention job). *(Not started.)*
+- [x] Prompt templates versioned in-repo (`DraftPrompt`). Token usage logged per request.
 - [ ] **Mini eval harness:** ~10 anonymized real tickets, a script that runs the
       pipeline and dumps gate decision + draft to console/markdown for eyeball review.
-      Cheap to build, and it's what makes prompt/model changes safe. Keep it.
-- [ ] Wire the pipeline into the Stage 1 endpoints, replacing canned responses.
-- [ ] Unit tests where logic is actually tricky (gate decision, language pinning,
-      history validation on refinement) — not blanket coverage.
+      *(Not started — deferred until there's a knowledge base to evaluate against.)*
+- [x] Wire the pipeline into the Stage 1 endpoints, replacing canned responses;
+      `insufficient_data` returned as a first-class typed response.
+- [x] Unit tests for pipeline logic (language pinning, internal-note exclusion,
+      empty-reply and no-customer-message handling) — 4 tests with a fake `IChatClient`.
 
-Exit criteria: real ticket + real knowledge base → useful draft in the customer's
-language; thin-knowledge ticket → typed `insufficient_data` without an LLM call;
-refinement works end to end via HTTP.
+Exit criteria (lite): real ticket → useful draft in the customer's language, verified
+live against the Time Resistance ticket. Full exit criteria (retrieval gate + refinement)
+carry forward to after Stage 2.
 
 ## Stage 4 — Panel SPA
 
