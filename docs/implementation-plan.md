@@ -127,28 +127,28 @@ carry forward to after Stage 2.
 
 Goal: the full agent-facing UI, developed entirely in a normal browser tab.
 
-- [ ] Mock harness page: static page that iframes the panel and postMessages fake
-      `copilot:context` messages (`{v:1, ticketId, account}`), with a control to
-      switch tickets — this is the daily dev environment.
-- [ ] Svelte 5 app: typed state machine (`unauthenticated → idle → generating →
+- [x] Mock harness page (`panel/public/harness.html`): iframes the panel and
+      postMessages a fake `copilot:context` (`{v:1, ticketId, account}`), with a
+      ticket-ID control — the daily dev environment.
+- [x] Svelte 5 app: typed state machine (`unauthenticated → idle → generating →
       drafted | insufficient_data | error`; `context_switch` → `idle`) as a plain TS
-      module with exhaustive discriminated unions; components are thin views over it.
-      The discriminated-union typing largely replaces the need for a state-machine
-      test suite — a handful of transition tests is plenty.
-- [ ] Chat UI: request draft, loading state, refinement input, draft display,
-      **copy to clipboard** (`navigator.clipboard.writeText`). Functional and tidy
-      beats polished — restyle later if the pilot sticks.
-- [ ] The panel owns conversation state (backend is stateless): keep the draft +
-      refinement history in memory and send it with each refinement request; a ticket
-      switch or refresh starts fresh — that's acceptable and by design.
-- [ ] `insufficient_data` rendered as a first-class state with the verbatim backend
+      module (`src/lib/state.ts`) with exhaustive discriminated unions + `never` check;
+      7 transition tests (vitest, wired into CI).
+- [~] Chat UI: request draft, loading state, draft display, **copy to clipboard**.
+      **Refinement input deferred** — the server endpoint is out of the Stage 3-lite
+      scope, so the loop is request → draft → copy for now.
+- [ ] The panel owns conversation state for refinement — *deferred with refinement.*
+- [x] `insufficient_data` rendered as a first-class state with the verbatim backend
       message — visibly distinct from errors.
-- [ ] Auth: bearer token entry, kept in `sessionStorage`; postMessage handling
-      origin-checked and runtime-validated (this is a security boundary — don't trim it).
-- [ ] Manual visual pass at panel dimensions (~360–420 px wide).
+- [x] Auth: bearer token in `sessionStorage`; postMessage origin-checked and
+      runtime-validated (`parseCopilotContext`). API gained a CORS policy
+      (loopback in dev, configured origin in prod).
+- [x] Manual visual pass at panel dimensions (400 px iframe), verified live in-browser.
 
-Exit criteria: full request → draft → refine → copy loop working against the local
-backend, driven from the mock harness, with no extension involved.
+Exit criteria (lite): request → draft → copy loop working against the local backend,
+driven from the mock harness, no extension involved — **verified live** (German draft
+for the Time Resistance ticket rendered in the panel). Refine step carries forward with
+refinement turns.
 
 ## Stage 5 — Extension shell
 

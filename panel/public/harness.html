@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Copilot panel — dev harness</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        display: flex;
+        height: 100vh;
+        background: #eef1f4;
+      }
+      .fake-gorgias {
+        flex: 1;
+        padding: 2rem;
+        color: #555;
+      }
+      .controls {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+      }
+      .controls input {
+        font: inherit;
+        padding: 0.4rem;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+      }
+      .controls button {
+        font: inherit;
+        padding: 0.4rem 0.9rem;
+        border: 1px solid #2b6cb0;
+        background: #2b6cb0;
+        color: #fff;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      /* Mimics the docked iframe the extension shell will mount beside the ticket. */
+      iframe {
+        width: 400px;
+        height: 100vh;
+        border: none;
+        border-left: 1px solid #d5d5d5;
+        box-shadow: -2px 0 8px rgba(0, 0, 0, 0.05);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fake-gorgias">
+      <h1>Mock Gorgias ticket view</h1>
+      <p>This stands in for the Gorgias page. Enter a ticket ID and load it into the panel →</p>
+      <div class="controls">
+        <input id="ticketId" value="271859246" aria-label="Ticket ID" />
+        <input id="account" value="timeresistance" aria-label="Account" />
+        <button id="load" type="button">Load ticket</button>
+      </div>
+    </div>
+
+    <iframe id="panel" src="/" title="Copilot panel"></iframe>
+
+    <script>
+      const panel = document.getElementById('panel');
+
+      function sendContext() {
+        const ticketId = document.getElementById('ticketId').value.trim();
+        const account = document.getElementById('account').value.trim();
+        panel.contentWindow.postMessage(
+          { v: 1, type: 'copilot:context', ticketId, account },
+          window.location.origin,
+        );
+      }
+
+      // The panel announces copilot:ready once mounted; send the initial context then.
+      window.addEventListener('message', (event) => {
+        if (event.origin === window.location.origin && event.data?.type === 'copilot:ready') {
+          sendContext();
+        }
+      });
+
+      document.getElementById('load').addEventListener('click', sendContext);
+    </script>
+  </body>
+</html>
