@@ -101,9 +101,14 @@ dotnet run
 ```
 
 Starts the API (http://localhost:5249) and the panel dev server (hot reload; Aspire
-assigns its port via the `PORT` env var) together, plus the Aspire dashboard — URL
-printed in the console — with endpoint links, logs, traces, and restart controls for
-both. The panel also receives `VITE_API_URL` pointing at the API automatically.
+assigns its port via the `PORT` env var) together, plus the Aspire dashboard at
+https://localhost:17139 (login URL with token printed in the console) — endpoint links,
+logs, traces, and restart controls for both. The panel automatically receives
+`VITE_API_URL` pointing at the API.
+
+To use the panel, open the **`panel` resource URL from the dashboard and append
+`/harness.html`** (e.g. `http://localhost:52314/harness.html`) — the panel itself is an
+iframe-only app, so the harness is what drives it.
 
 **Option B — two terminals, no Aspire:**
 
@@ -117,8 +122,13 @@ cd panel
 pnpm dev
 ```
 
-Open http://localhost:5173 directly in the browser. (From Stage 4 onward, use the mock
-harness page, which iframes the panel and postMessages a fake `copilot:context`.)
+Then open **http://localhost:5173/harness.html**.
+
+**Using the harness** (either option): it stands in for the Gorgias page — it iframes the
+panel and postMessages a fake `copilot:context`. Enter a ticket ID (a real one from your
+Gorgias account), click **Load ticket**, then **Generate reply** in the panel. In dev the
+access token is pre-filled with `local-dev-token`, matching
+`Api:BearerToken` in `appsettings.Development.json`.
 
 **Extension loop** (only for shell work — docking, navigation detection, clipboard):
 
