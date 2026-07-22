@@ -1,0 +1,5 @@
+packages:
+  - panel
+  - extension
+allowBuilds:
+  esbuild: true

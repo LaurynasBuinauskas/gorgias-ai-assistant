@@ -315,6 +315,13 @@ FakesAssemblies/
 .ntvs_analysis.dat
 node_modules/
 
+# Vite build output (panel + extension)
+dist/
+
+# Postman environment exports hold real credentials — never commit them.
+# (Collection exports with {{variable}} auth are fine.)
+*.postman_environment.json
+
 # Visual Studio 6 build log
 *.plg
 

@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/tools/">
+    <Project Path="tools/Copilot.Ingest/Copilot.Ingest.csproj" />
+  </Folder>
+  <Project Path="../apphost/Copilot.AppHost.csproj" />
+  <Project Path="Copilot.Ai/Copilot.Ai.csproj" />
+  <Project Path="Copilot.Api/Copilot.Api.csproj" />
+  <Project Path="Copilot.Domain/Copilot.Domain.csproj" />
+  <Project Path="Copilot.Gorgias/Copilot.Gorgias.csproj" />
+  <Project Path="Copilot.Knowledge/Copilot.Knowledge.csproj" />
+  <Project Path="Copilot.Pipeline/Copilot.Pipeline.csproj" />
+  <Project Path="Copilot.Tests/Copilot.Tests.csproj" />
+</Solution>

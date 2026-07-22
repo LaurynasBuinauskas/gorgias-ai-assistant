@@ -1,0 +1,11 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web"><PropertyGroup>  <UserSecretsId>608e91c0-c0f7-4c89-b630-963fb7172308</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Copilot.Pipeline\Copilot.Pipeline.csproj" />
+    <ProjectReference Include="..\Copilot.Ai\Copilot.Ai.csproj" />
+    <ProjectReference Include="..\Copilot.Gorgias\Copilot.Gorgias.csproj" />
+    <ProjectReference Include="..\Copilot.Knowledge\Copilot.Knowledge.csproj" />
+  </ItemGroup>
+
+</Project>

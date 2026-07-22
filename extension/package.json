@@ -1,0 +1,14 @@
+{
+  "name": "@copilot/extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.328",
+    "typescript": "^5.8.0",
+    "vite": "^7.0.0"
+  }
+}
