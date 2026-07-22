@@ -15,12 +15,15 @@ Consequence to internalize: extension releases are rare (shell contract/manifest
 ## 2. Repository layout
 
 ```
-copilot/
+gorgias-ai-assistant/
 ├── extension/    # MV3 shell: manifest.json, inject.ts, panel.css
 ├── panel/        # Svelte 5 SPA
 ├── backend/      # .NET 10 solution
-└── TECHNICAL_REFERENCE.md
+├── apphost/      # Aspire AppHost: local-dev orchestrator (API + panel), not deployed
+└── docs/         # Technical reference, dev guide, implementation plan
 ```
+
+The README documents the full structure and local-run instructions.
 
 Tooling: Node.js 22 LTS, pnpm workspaces, TypeScript everywhere in JS-land, `@types/chrome` in `extension/`, Biome for lint/format, Playwright for E2E.
 
@@ -28,7 +31,9 @@ Tooling: Node.js 22 LTS, pnpm workspaces, TypeScript everywhere in JS-land, `@ty
 
 **Panel first, extension rarely.** The shell↔panel contract is 4 postMessage types (see technical reference §4), so ~90 % of product work needs no extension loaded:
 
-1. `pnpm dev` in `panel/` → Vite dev server at `http://localhost:5173`.
+1. `pnpm dev` in `panel/` → Vite dev server at `http://localhost:5173` — or run
+   `dotnet run` in `apphost/` to start API + panel together under Aspire (dashboard
+   with logs/traces included).
 2. Open it in a normal tab with a mock harness page that postMessages a fake `copilot:context` (`{v:1, ticketId, account}`). Full HMR, normal devtools.
 3. Backend runs locally (`dotnet run`) or against the deployed dev API.
 
