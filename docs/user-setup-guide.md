@@ -1,76 +1,53 @@
-# Gorgias AI Assistant — Setup Guide
+# Gorgias AI Assistant — Demo Setup
 
-A one-time setup, about five minutes. After this, the assistant appears automatically
-whenever you open a ticket.
+Quick install for running the demo. Audience: a developer on the team. ~5 minutes.
 
-## What you'll need
+## 1. Get the extension
 
-- **Google Chrome** or **Microsoft Edge** (desktop).
-- **The extension folder** — a folder named `gorgias-ai-assistant-extension` containing
-  `manifest.json`, `inject.js`, and `panel.css`. Your administrator provides this (or
-  downloads it from the project's **Actions → Build extension → Artifacts**).
-- **Your access token** — a short secret string, also from your administrator. You enter
-  it once.
+**Cloud demo (recommended)** — the build already points at Azure:
 
-## Step 1 — Put the extension folder somewhere permanent
+GitHub → **Actions** → **Build extension** → latest run on `main` → download the
+`gorgias-ai-assistant-extension` artifact → unzip.
 
-Unzip the folder to a location you won't delete or move — for example
-`Documents\gorgias-ai-assistant-extension`.
+**Local demo** — build it and run the servers yourself:
 
-> ⚠️ Chrome loads the extension from this folder every time it starts. If you move or
-> delete it, the assistant stops working. Don't leave it in Downloads.
+```sh
+pnpm --filter @copilot/extension build   # → extension/dist, points at localhost
+```
 
-## Step 2 — Load it into your browser
+Then start the backend + panel (`dotnet run` in `apphost/`, or the two-terminal route in
+the README).
 
-1. Open a new tab and go to **`chrome://extensions`** (or `edge://extensions` on Edge).
-2. Turn on **Developer mode** — the toggle is in the top-right corner.
-3. Click **Load unpacked** (top-left).
-4. Select the folder from Step 1 and confirm.
+> Keep the unzipped folder somewhere permanent — Chrome loads it from there on every start.
 
-You should now see a card titled **Gorgias AI Assistant** with version **0.1.0**. That's it —
-the extension is installed.
+## 2. Load it into Chrome
 
-> Chrome shows a small "Developer mode extensions" notice each time it starts. That's
-> normal for this kind of install and safe to dismiss.
+`chrome://extensions` → **Developer mode** on → **Load unpacked** → select the folder.
+The card should read **Gorgias AI Assistant 0.1.0**.
 
-## Step 3 — Open a ticket and sign in
+> If an older localhost build is still loaded, **remove it first** — two copies inject two
+> panels.
 
-1. Go to your Gorgias account and open any ticket
-   (the URL looks like `https://yourcompany.gorgias.com/app/views/…`).
-2. The **AI Assistant** panel appears on the right side of the page.
-3. The first time, it asks for an **Access token**. Paste the token from your
-   administrator and you're in.
+## 3. Sign in
 
-Your token is saved in this browser only, so you won't be asked again on this computer.
+Open a real ticket (`https://<sub>.gorgias.com/app/views/…`). The panel appears on the
+right and asks for a token once:
 
-## Step 4 — Confirm it works
+- **Cloud build** → the production bearer token (Key Vault secret `api-bearertoken`).
+- **Local build** → `local-dev-token`.
 
-Click **✨ Generate a reply**. Within a few seconds you should see the customer's details
-appear at the top of the panel, followed by a drafted reply writing itself out. If you see
-that, setup is complete — head to the **Usage Guide**.
+Stored per browser, so you only do this once per machine.
 
-## Keeping it up to date
+## 4. Run it
 
-There are no automatic updates for this kind of install. When your administrator sends a
-newer version:
+Click **✨ Generate a reply**. You should see the ticket header appear, then a draft stream
+in. That's the demo ready.
 
-1. Replace the old folder with the new one (same location).
-2. Go to `chrome://extensions` and click the **↻ reload** icon on the Gorgias AI Assistant
-   card.
+## Gotchas
 
-## Troubleshooting
-
-| What you see | What to do |
-|---|---|
-| **No panel appears** on a ticket | Make sure you're on a ticket page (`/app/views/…`), then refresh. Check the extension card at `chrome://extensions` has no red "Errors" button. |
-| **"Could not reach the assistant"** | Usually a connection issue — check your internet and try **Retry**. If it persists, tell your administrator. |
-| **"Unauthorized — check your access token"** | The token is wrong or expired. Clear it and paste the correct one (see below), or ask your administrator for a fresh token. |
-| **Two panels, or an old-looking one** | You may have an older copy installed. At `chrome://extensions`, remove any duplicate **Gorgias AI Assistant** cards and keep only the current folder. |
-| **Panel is in the way** | Click **Hide Assistant** in the top-right of the page to collapse it; click **Assistant** to bring it back. |
-
-**To re-enter your access token:** open the panel, and if you need to clear a saved token,
-your administrator can walk you through it, or simply use a fresh browser profile. (A token
-reset option is on the roadmap.)
-
-Still stuck? Send your administrator a short note with what you clicked and what the panel
-said — that's usually enough to sort it out.
+- **Download the latest artifact.** Origins are baked in at build time — an older run
+  points at localhost and fails with “Could not reach the assistant.”
+- **Don't move the folder** after loading; it breaks the unpacked extension.
+- **Cloud cold start:** the first draft after the API has been idle can take ~10–15 s, then
+  settles to a few seconds.
+- **Wrong token → “Unauthorized.”** Right endpoint, wrong secret — swap it in the panel.

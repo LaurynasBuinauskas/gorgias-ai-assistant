@@ -14,8 +14,8 @@ never sends replies autonomously.
 | [docs/gorgias-copilot-extension-dev-guide.md](docs/gorgias-copilot-extension-dev-guide.md) | Tooling, dev workflow, build & release |
 | [docs/implementation-plan.md](docs/implementation-plan.md) | Stage-by-stage plan with exit criteria |
 | [docs/azure-setup.md](docs/azure-setup.md) | One-time cloud provisioning runbook (CLI + portal) |
-| [docs/user-setup-guide.md](docs/user-setup-guide.md) | **For support agents:** installing the widget |
-| [docs/user-usage-guide.md](docs/user-usage-guide.md) | **For support agents:** using the assistant day to day |
+| [docs/user-setup-guide.md](docs/user-setup-guide.md) | Demo setup: install the widget (for the dev running the demo) |
+| [docs/user-usage-guide.md](docs/user-usage-guide.md) | Usage + a suggested demo flow |
 | [CLAUDE.md](CLAUDE.md) | Coding standards + instructions for AI assistants |
 
 ## Repository structure

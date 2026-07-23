@@ -1,98 +1,48 @@
-# Gorgias AI Assistant — Usage Guide
+# Gorgias AI Assistant — Usage & Demo Flow
 
-The assistant reads the ticket you're viewing and drafts a reply for you. It never sends
-anything — you stay in control, review the draft, and copy it into Gorgias when you're
-happy with it.
+What the assistant does and a suggested order to show it off. It reads the open ticket and
+drafts a reply — it never sends anything; you review and copy into Gorgias.
 
-## The basics
+## Suggested demo flow
 
-Open any ticket and the **AI Assistant** panel appears on the right. At the top it shows
-what it's looking at — the customer's name, the subject, the conversation's language, and
-how many messages it read:
+A clean 6-step walkthrough that shows the whole product in ~2 minutes:
 
-> **Deborah Tauch**
-> Re: timeresistance.de Return Confirmation
-> German · 13 messages
+1. **Open a ticket** with a non-English customer (e.g. the German return thread). The panel
+   appears on the right.
+2. **Click “✨ Generate a reply.”** Point out the ticket header that pops in (customer,
+   subject, *German · 13 messages*) — it read the conversation — then the reply streaming in.
+3. **Note the draft is in English** — the agent's working language, so they can review fast.
+4. **Click “Translate to German.”** The whole reply is rewritten in the customer's language.
+5. **Type a free-form instruction** — e.g. *“mention the refund takes 5 business days”* — to
+   show it takes prompts and keeps context.
+6. **Click “Copy latest,”** paste into the Gorgias reply box. Emphasise: nothing is sent
+   automatically — the agent always approves.
 
-This header appears as soon as the assistant has read the ticket, so you know it's working
-with the right conversation.
+## Feature reference
 
-## Two ways to start
+**Two ways to start.** Click **Generate a reply** for a suggested draft, or type your own
+instruction (*“apologise and offer a 10% discount”*) and press Enter.
 
-When you open a ticket you have two options:
+**English first.** Every draft comes out in English so it's quick to review, with one-tap
+buttons once it's ready:
 
-1. **Click “✨ Generate a reply.”** The assistant writes a suggested reply based on the
-   whole conversation.
-2. **Type your own instruction** in the box at the bottom and press Enter — for example
-   *“apologise for the delay and offer a 10% discount”* or *“ask them for their order
-   number.”* The assistant drafts exactly what you asked for.
+- **Translate to \<language\>** — names the customer's actual language and rewrites in it.
+- **Friendlier**, **Shorter**, **More formal** — tone changes, applied to the whole reply.
 
-Either way, the reply streams in as it's written, so you can start reading immediately.
+**Keep chatting.** The box at the bottom is a conversation — each instruction builds on the
+last draft (*“make paragraph two shorter,” “reply in Spanish instead”*).
 
-## Drafts come out in English
+**Copy in.** **Copy** (under a draft) or **Copy latest**, then paste into Gorgias with
+<kbd>Ctrl</kbd>+<kbd>V</kbd> and send it there as normal.
 
-Every draft is written in **English** first, so you can review it quickly in your working
-language — even when the customer wrote in German, French, or anything else.
+**Regenerate / switch / hide.** **Regenerate** for a fresh take; open another ticket and the
+panel follows along; **Hide Assistant** (top-right) collapses it.
 
-When the reply is ready, you'll see quick buttons above the text box:
+## Good to know for the demo
 
-- **Translate to German** (it names the customer's actual language) — turns the current
-  reply into the customer's language, ready to send.
-- **Friendlier** — warmer, more personal tone.
-- **Shorter** — trims it down without dropping any facts.
-- **More formal** — a more professional tone.
-
-Tap any of these and the assistant rewrites the whole reply with that change.
-
-## Asking for your own changes
-
-The text box at the bottom is a chat with the assistant. After a draft, type anything and
-press Enter:
-
-- *“mention that the refund takes 5 business days”*
-- *“make the second paragraph shorter”*
-- *“reply in Spanish instead”*
-- *“sound more apologetic”*
-
-It keeps the context of the conversation, so each change builds on the last draft rather
-than starting over.
-
-## Sending the reply
-
-The assistant never sends anything. When you're happy with a draft:
-
-1. Click **Copy** (under a draft) or **Copy latest** (next to the text box).
-2. Switch to the Gorgias reply box and paste (Ctrl+V / Cmd+V).
-3. Review once more and send it in Gorgias as you normally would.
-
-## Other things you can do
-
-- **Regenerate** — not happy with a draft? Click **Regenerate** for a fresh take.
-- **Switch tickets** — open another ticket and the panel follows along, starting a fresh
-  conversation for the new one.
-- **Hide the panel** — click **Hide Assistant** at the top-right of the page to collapse
-  it; click **Assistant** to bring it back.
-
-## When it says it can't help
-
-Sometimes the assistant will tell you it can't draft a reply — for example
-*“This ticket has no customer message to reply to.”* That's it being honest rather than
-guessing. It won't invent order details, prices, or policies that aren't in the
-conversation; if something's missing, it will suggest asking the customer for it.
-
-## Tips for the best results
-
-- **Review every draft.** It's a strong first draft, not a final answer — check facts,
-  names, and any numbers before sending.
-- **Be specific in your instructions.** *“offer express shipping at no charge”* beats
-  *“be nice.”*
-- **Draft in English, translate last.** Review and adjust the English version, then hit
-  **Translate to …** as the final step so nothing gets lost.
-- **Chain changes.** You can translate, then shorten, then make it friendlier — each one
-  builds on the previous draft.
-
-## What it will never do
-
-- It never sends a reply on its own — every message goes out through you, in Gorgias.
-- It never changes the ticket, tags, or status.
-- It only uses what's in the ticket conversation; it doesn't make up facts.
+- If it says *“This ticket has no customer message to reply to,”* that's expected — pick a
+  ticket with a customer message.
+- It won't invent order details, prices, or policies — only what's in the conversation. With
+  no SOP documents loaded yet, drafts are grounded in the ticket alone (real RAG is the next
+  step).
+- Human-in-the-loop by design: it never sends, and never changes the ticket, tags, or status.
