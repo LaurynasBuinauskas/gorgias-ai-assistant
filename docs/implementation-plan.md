@@ -140,7 +140,7 @@ Goal: the full agent-facing UI, developed entirely in a normal browser tab.
 - [ ] The panel owns conversation state for refinement — *deferred with refinement.*
 - [x] `insufficient_data` rendered as a first-class state with the verbatim backend
       message — visibly distinct from errors.
-- [x] Auth: bearer token in `sessionStorage`; postMessage origin-checked and
+- [x] Auth: bearer token in `localStorage`; postMessage origin-checked and
       runtime-validated (`parseCopilotContext`). API gained a CORS policy
       (loopback in dev, configured origin in prod).
 - [x] Manual visual pass at panel dimensions (400 px iframe), verified live in-browser.

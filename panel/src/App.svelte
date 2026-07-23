@@ -15,7 +15,7 @@ const TOKEN_KEY = 'copilot:token';
 const SHELL_ORIGIN = resolveShellOrigin();
 
 let token = $state(
-  sessionStorage.getItem(TOKEN_KEY) ?? (import.meta.env.DEV ? 'local-dev-token' : ''),
+  localStorage.getItem(TOKEN_KEY) ?? (import.meta.env.DEV ? 'local-dev-token' : ''),
 );
 let panel = $state<PanelState>(initialState);
 let context = $state<PanelContext | null>(null);
@@ -25,9 +25,11 @@ function dispatch(event: PanelEvent) {
   panel = reduce(panel, event);
 }
 
-// Persist the token so a refresh keeps the agent signed in.
+// localStorage, not sessionStorage: the panel runs in a third-party iframe whose
+// sessionStorage is per-tab, so agents would re-enter the token on every Gorgias tab.
+// Storage is partitioned to this origin under the Gorgias top-level site.
 $effect(() => {
-  sessionStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(TOKEN_KEY, token);
 });
 
 // Bootstrap: once a token and a ticket are both present, enter the draft lifecycle.
@@ -97,7 +99,7 @@ async function copy(text: string) {
     <section class="pad">
       <label for="token">Access token</label>
       <input id="token" type="password" bind:value={token} placeholder="Paste your team token" />
-      <p class="hint">Your token is kept only in this browser session.</p>
+      <p class="hint">Stored in this browser only — you'll enter it once.</p>
     </section>
   {:else if !context}
     <section class="pad muted">Waiting for a ticket…</section>

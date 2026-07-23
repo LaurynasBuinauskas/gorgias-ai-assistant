@@ -50,7 +50,7 @@ Agent browser
 - Framework: **Svelte 5** (React acceptable if team prefers; nothing is framework-coupled). Build: Vite. Hosted on Azure Static Web Apps.
 - State machine: `unauthenticated → idle → generating → drafted | insufficient_data | error`; `context_switch` resets to `idle`. Render `insufficient_data` as a first-class state (verbatim backend message), not an error.
 - Clipboard: `navigator.clipboard.writeText` (enabled by iframe allow attribute).
-- Auth: no cookies ever (third-party partitioning). MVP: per-team bearer token in panel `sessionStorage`. Full: OIDC auth-code + PKCE via popup on our origin (Entra ID), tokens in memory, silent renewal. Extension never holds credentials.
+- Auth: no cookies ever (third-party partitioning). MVP: per-team bearer token in panel `localStorage` (entered once per browser; `sessionStorage` is per-tab and the panel is a third-party iframe, so agents would re-enter it constantly). Never baked into the bundle — it is served publicly and would grant read access to every ticket. Full: OIDC auth-code + PKCE via popup on our origin (Entra ID), tokens in memory, silent renewal. Extension never holds credentials.
 - Headers on SPA origin: `Content-Security-Policy: frame-ancestors https://*.gorgias.com`, `X-Content-Type-Options: nosniff`.
 
 ## 6. Backend (.NET 10, C#)
