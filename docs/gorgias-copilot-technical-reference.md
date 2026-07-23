@@ -48,7 +48,7 @@ Agent browser
 ## 5. Panel SPA
 
 - Framework: **Svelte 5** (React acceptable if team prefers; nothing is framework-coupled). Build: Vite. Hosted on Azure Static Web Apps.
-- State machine: `unauthenticated → idle → generating → drafted | insufficient_data | error`; `context_switch` resets to `idle`. Render `insufficient_data` as a first-class state (verbatim backend message), not an error.
+- State machine: `unauthenticated → idle → generating → idle | insufficient_data | error`; `context_switch` resets to `idle` with an empty conversation. The panel holds the conversation as `turns` (assistant drafts + agent instructions) and replays it on every request, so a completed draft returns to `idle` rather than a separate `drafted` state. Render `insufficient_data` as a first-class state (verbatim backend message), not an error.
 - Clipboard: `navigator.clipboard.writeText` (enabled by iframe allow attribute).
 - Auth: no cookies ever (third-party partitioning). MVP: per-team bearer token in panel `localStorage` (entered once per browser; `sessionStorage` is per-tab and the panel is a third-party iframe, so agents would re-enter it constantly). Never baked into the bundle — it is served publicly and would grant read access to every ticket. Full: OIDC auth-code + PKCE via popup on our origin (Entra ID), tokens in memory, silent renewal. Extension never holds credentials.
 - Headers on SPA origin: `Content-Security-Policy: frame-ancestors https://*.gorgias.com`, `X-Content-Type-Options: nosniff`.
@@ -64,10 +64,10 @@ Endpoints (v1 = MVP):
 | Endpoint | Phase | Notes |
 |---|---|---|
 | `POST /v1/tickets/{id}/drafts` | MVP | Fetch ticket from Gorgias REST API on demand (cache-read-first only if P2 ingest is adopted) → pipeline → draft JSON or typed `insufficient_data`. |
-| `POST /v1/drafts/{draftId}/messages` | MVP | Refinement turn; the panel sends the full conversation history with each request (stateless backend, no server-side conversation storage in MVP). |
+| `POST /v1/tickets/{id}/drafts/stream` | MVP | Same pipeline, streamed as SSE (`delta` / `done` / `insufficient` / `error`). POST, not GET, because the panel replays the conversation in the body and fetch-based SSE can send the bearer header EventSource cannot. Refinement uses this endpoint with `turns` + `instruction` — no separate refinement route is needed. |
 | `GET /v1/config` | MVP | Feature flags, anchor probes, min shell version, kill switch. |
 | `POST /v1/telemetry/anchor` | MVP | Dock-mode telemetry. |
-| `GET /v1/tickets/{id}/draft-stream` | P2 | SSE tokens + stage events (SSE chosen over SignalR: one-way, no extra service, iframe-friendly). |
+| ~~`GET /v1/tickets/{id}/draft-stream`~~ | — | Superseded: streaming shipped in the MVP as `POST .../drafts/stream` (see above). Stage events remain a P2 idea. |
 | `POST /v1/ingest` | P2 (optional) | Gorgias HTTP-integration receiver, only if the ticket cache is adopted. Shared-secret header check; idempotent upsert by ticket/message ID; must respond < 5 s (Gorgias timeout; 3 retries only — hence pull-fallback semantics). |
 | `POST /v1/drafts/{draftId}/accepted` | P2 | Feedback capture. Pairing with the agent's actually-sent reply requires the ingest stream — adopt ingest alongside this feature. |
 

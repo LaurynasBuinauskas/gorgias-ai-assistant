@@ -2,53 +2,96 @@ import { describe, expect, it } from 'vitest';
 import { initialState, type PanelContext, type PanelState, reduce } from './state';
 
 const context: PanelContext = { ticketId: '271859246', account: 'timeresistance' };
-const draft = { draftId: 'd1', body: 'Hallo', language: 'de' };
+
+/** Drive the machine to a completed draft, the state most interactions start from. */
+function drafted(text = 'Hallo Jane'): PanelState {
+  let state: PanelState = reduce(initialState, { type: 'authenticated', context });
+  state = reduce(state, { type: 'generate' });
+  state = reduce(state, { type: 'delta', text });
+  return reduce(state, { type: 'completed' });
+}
 
 describe('panel state machine', () => {
   it('starts unauthenticated', () => {
     expect(initialState.status).toBe('unauthenticated');
   });
 
-  it('authenticates into idle with a context', () => {
-    const state = reduce(initialState, { type: 'authenticated', context });
-    expect(state).toEqual({ status: 'idle', context });
+  it('authenticates into an empty conversation', () => {
+    expect(reduce(initialState, { type: 'authenticated', context })).toEqual({
+      status: 'idle',
+      context,
+      turns: [],
+    });
   });
 
   it('ignores context while unauthenticated', () => {
     expect(reduce(initialState, { type: 'context', context })).toEqual(initialState);
   });
 
-  it('runs the happy path idle → generating → drafted', () => {
+  it('accumulates streamed deltas into a draft turn', () => {
     let state: PanelState = reduce(initialState, { type: 'authenticated', context });
     state = reduce(state, { type: 'generate' });
-    expect(state.status).toBe('generating');
-    state = reduce(state, { type: 'drafted', draft });
-    expect(state).toEqual({ status: 'drafted', context, draft });
+    state = reduce(state, { type: 'delta', text: 'Hallo ' });
+    state = reduce(state, { type: 'delta', text: 'Jane' });
+    expect(state).toMatchObject({ status: 'generating', partial: 'Hallo Jane' });
+
+    state = reduce(state, { type: 'completed' });
+    expect(state).toEqual({
+      status: 'idle',
+      context,
+      turns: [{ role: 'assistant', text: 'Hallo Jane' }],
+    });
   });
 
-  it('surfaces insufficient_data and error only from generating', () => {
-    const idle = reduce(initialState, { type: 'authenticated', context });
-    const generating = reduce(idle, { type: 'generate' });
-    expect(reduce(generating, { type: 'insufficient', message: 'no knowledge' }).status).toBe(
-      'insufficient_data',
-    );
-    expect(reduce(generating, { type: 'failed', message: 'boom' }).status).toBe('error');
-    // A stray 'drafted' while idle is ignored (no illegal transition).
-    expect(reduce(idle, { type: 'drafted', draft })).toEqual(idle);
+  it('records the instruction before streaming the revision', () => {
+    const state = reduce(drafted(), { type: 'generate', instruction: 'translate to English' });
+    expect(state).toMatchObject({ status: 'generating', partial: '' });
+    expect(state.status !== 'unauthenticated' && state.turns).toEqual([
+      { role: 'assistant', text: 'Hallo Jane' },
+      { role: 'agent', text: 'translate to English' },
+    ]);
   });
 
-  it('regenerates from a drafted state', () => {
+  it('keeps the conversation when a generation fails', () => {
+    const state = reduce(reduce(drafted(), { type: 'generate', instruction: 'shorter' }), {
+      type: 'failed',
+      message: 'boom',
+    });
+    expect(state.status).toBe('error');
+    expect(state.status !== 'unauthenticated' && state.turns).toHaveLength(2);
+  });
+
+  it('can retry from error and insufficient_data', () => {
+    const failed = reduce(reduce(drafted(), { type: 'generate' }), {
+      type: 'failed',
+      message: 'x',
+    });
+    expect(reduce(failed, { type: 'generate' }).status).toBe('generating');
+
+    const thin = reduce(reduce(drafted(), { type: 'generate' }), {
+      type: 'insufficient',
+      message: 'no customer message',
+    });
+    expect(reduce(thin, { type: 'generate' }).status).toBe('generating');
+  });
+
+  it('ignores deltas and completion outside generating', () => {
+    const idle = drafted();
+    expect(reduce(idle, { type: 'delta', text: 'stray' })).toEqual(idle);
+    expect(reduce(idle, { type: 'completed' })).toEqual(idle);
+  });
+
+  it('drops an empty draft rather than adding a blank turn', () => {
     let state: PanelState = reduce(initialState, { type: 'authenticated', context });
     state = reduce(state, { type: 'generate' });
-    state = reduce(state, { type: 'drafted', draft });
-    expect(reduce(state, { type: 'generate' }).status).toBe('generating');
+    state = reduce(state, { type: 'completed' });
+    expect(state).toEqual({ status: 'idle', context, turns: [] });
   });
 
-  it('switches ticket back to idle and signs out', () => {
-    let state: PanelState = reduce(initialState, { type: 'authenticated', context });
+  it('switching ticket starts a fresh conversation, and sign-out resets', () => {
     const other = { ticketId: '999', account: 'timeresistance' };
-    state = reduce(state, { type: 'context', context: other });
-    expect(state).toEqual({ status: 'idle', context: other });
-    expect(reduce(state, { type: 'signed_out' }).status).toBe('unauthenticated');
+    const switched = reduce(drafted(), { type: 'context', context: other });
+    expect(switched).toEqual({ status: 'idle', context: other, turns: [] });
+    expect(reduce(switched, { type: 'signed_out' }).status).toBe('unauthenticated');
   });
 });

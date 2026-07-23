@@ -107,9 +107,11 @@ slots in ahead of the LLM call without reworking the pipeline.
 - [~] `Copilot.Pipeline`: detect language (pinned on output) → **[deferred: retrieve →
       relevance gate]** → draft from ticket context. Internal notes excluded from the
       prompt; empty/absent customer message ⇒ typed `InsufficientKnowledge`.
-- [ ] Refinement turns: `POST /v1/drafts/{draftId}/messages`, **stateless** — the panel
-      sends the full conversation history with each request; nothing persisted
-      server-side (no PII at rest, no retention job). *(Not started.)*
+- [x] Refinement turns, **stateless** — the panel sends the full conversation history
+      with each request; nothing persisted server-side. Shipped as `turns` +
+      `instruction` on the streaming endpoint rather than a separate
+      `/drafts/{id}/messages` route, so one code path serves first draft, revision and
+      translation.
 - [x] Prompt templates versioned in-repo (`DraftPrompt`). Token usage logged per request.
 - [ ] **Mini eval harness:** ~10 anonymized real tickets, a script that runs the
       pipeline and dumps gate decision + draft to console/markdown for eyeball review.
@@ -134,10 +136,11 @@ Goal: the full agent-facing UI, developed entirely in a normal browser tab.
       drafted | insufficient_data | error`; `context_switch` → `idle`) as a plain TS
       module (`src/lib/state.ts`) with exhaustive discriminated unions + `never` check;
       7 transition tests (vitest, wired into CI).
-- [~] Chat UI: request draft, loading state, draft display, **copy to clipboard**.
-      **Refinement input deferred** — the server endpoint is out of the Stage 3-lite
-      scope, so the loop is request → draft → copy for now.
-- [ ] The panel owns conversation state for refinement — *deferred with refinement.*
+- [x] Chat UI: streamed draft (token-by-token via SSE), conversation view, free-form
+      instruction composer, one-tap quick actions (Translate to English / Friendlier /
+      Shorter / More formal), per-message and latest-draft **copy to clipboard**.
+- [x] The panel owns conversation state (`turns`) and replays it to the stateless
+      backend; a ticket switch or refresh starts a fresh conversation, by design.
 - [x] `insufficient_data` rendered as a first-class state with the verbatim backend
       message — visibly distinct from errors.
 - [x] Auth: bearer token in `localStorage`; postMessage origin-checked and

@@ -1,28 +1,57 @@
 using System.Text;
 using Copilot.Domain;
+using Microsoft.Extensions.AI;
 
 namespace Copilot.Pipeline;
 
 /// <summary>
 /// Prompt templates are versioned here in-repo; changes go through the eval harness
-/// once it exists (Stage 3), never ad-hoc.
+/// once it exists, never ad-hoc.
 /// </summary>
 public static class DraftPrompt
 {
     public const string System = """
-        You are an experienced customer support agent drafting a reply to a customer.
+        You are an experienced customer support agent helping a colleague draft replies.
 
         Rules:
-        - Write the reply in the same language as the customer's latest message.
+        - Default to the language of the customer's latest message. If the agent asks for
+          another language (e.g. "translate to English"), switch to it and stay there.
         - Be polite, concise, and concrete; match the tone of a professional support team.
-        - Use only facts present in the conversation. Never invent order details,
-          policies, prices, deadlines, or commitments that are not stated there.
-        - If information needed to resolve the request is missing, ask the customer
-          for it rather than guessing.
-        - Output only the reply body: no subject line, no placeholders like [Name] —
-          use the customer's actual name if known, and end with a friendly sign-off
-          from the support team.
+        - Use only facts present in the conversation. Never invent order details, policies,
+          prices, deadlines, or commitments that are not stated there.
+        - If information needed to resolve the request is missing, ask the customer for it
+          rather than guessing.
+        - Output only the reply body: no subject line, no preamble like "Here is the draft",
+          no placeholders like [Name] — use the customer's actual name if known — and end
+          with a friendly sign-off from the support team.
+        - When the agent asks for a change, rewrite the whole reply with that change applied.
+          Always return a complete, ready-to-send reply, never a diff or commentary.
         """;
+
+    /// <summary>
+    /// Builds the full conversation: ticket transcript, then the agent's refinement turns.
+    /// </summary>
+    public static IReadOnlyList<ChatMessage> Build(TicketContext ticket, DraftRequest request)
+    {
+        List<ChatMessage> messages =
+        [
+            new(ChatRole.System, System),
+            new(ChatRole.User, BuildTranscript(ticket)),
+        ];
+
+        foreach (var turn in request.Turns)
+        {
+            var role = turn.Role == DraftTurnRole.Assistant ? ChatRole.Assistant : ChatRole.User;
+            messages.Add(new ChatMessage(role, turn.Text));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Instruction))
+        {
+            messages.Add(new ChatMessage(ChatRole.User, request.Instruction));
+        }
+
+        return messages;
+    }
 
     public static string BuildTranscript(TicketContext ticket)
     {

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Copilot.Domain;
 using Copilot.Pipeline;
 using Microsoft.Extensions.AI;
@@ -13,7 +14,10 @@ public sealed class DraftingPipelineTests
         var chatClient = new FakeChatClient("Hallo Jane, gerne senden wir Ihnen die Rechnung zu.");
         var pipeline = CreatePipeline(chatClient);
 
-        var result = await pipeline.GenerateDraftAsync(Ticket(CustomerMessage("Bitte um Rechnung")), CancellationToken.None);
+        var result = await pipeline.GenerateDraftAsync(
+            Ticket(CustomerMessage("Bitte um Rechnung")),
+            DraftRequest.Initial,
+            CancellationToken.None);
 
         var success = Assert.IsType<PipelineResult.Success>(result);
         Assert.Equal("Hallo Jane, gerne senden wir Ihnen die Rechnung zu.", success.Draft.Body);
@@ -27,7 +31,10 @@ public sealed class DraftingPipelineTests
         var chatClient = new FakeChatClient("should never be called");
         var pipeline = CreatePipeline(chatClient);
 
-        var result = await pipeline.GenerateDraftAsync(Ticket(AgentMessage("We shipped it")), CancellationToken.None);
+        var result = await pipeline.GenerateDraftAsync(
+            Ticket(AgentMessage("We shipped it")),
+            DraftRequest.Initial,
+            CancellationToken.None);
 
         Assert.IsType<PipelineResult.InsufficientKnowledge>(result);
         Assert.Null(chatClient.LastMessages);
@@ -38,11 +45,9 @@ public sealed class DraftingPipelineTests
     {
         var chatClient = new FakeChatClient("reply");
         var pipeline = CreatePipeline(chatClient);
-        var ticket = Ticket(
-            CustomerMessage("Where is my order?"),
-            InternalNote("secret asana link"));
+        var ticket = Ticket(CustomerMessage("Where is my order?"), InternalNote("secret asana link"));
 
-        await pipeline.GenerateDraftAsync(ticket, CancellationToken.None);
+        await pipeline.GenerateDraftAsync(ticket, DraftRequest.Initial, CancellationToken.None);
 
         var transcript = Assert.Single(chatClient.LastMessages!, m => m.Role == ChatRole.User).Text;
         Assert.Contains("Where is my order?", transcript);
@@ -54,9 +59,75 @@ public sealed class DraftingPipelineTests
     {
         var pipeline = CreatePipeline(new FakeChatClient("   "));
 
-        var result = await pipeline.GenerateDraftAsync(Ticket(CustomerMessage("Hello")), CancellationToken.None);
+        var result = await pipeline.GenerateDraftAsync(
+            Ticket(CustomerMessage("Hello")),
+            DraftRequest.Initial,
+            CancellationToken.None);
 
         Assert.IsType<PipelineResult.InsufficientKnowledge>(result);
+    }
+
+    [Fact]
+    public async Task ReplaysRefinementTurnsAndInstruction()
+    {
+        var chatClient = new FakeChatClient("Hello Jane, the invoice is on its way.");
+        var pipeline = CreatePipeline(chatClient);
+        var request = new DraftRequest
+        {
+            Turns =
+            [
+                new DraftTurn(DraftTurnRole.Assistant, "Hallo Jane, die Rechnung folgt."),
+                new DraftTurn(DraftTurnRole.Agent, "make it warmer"),
+            ],
+            Instruction = "translate to English",
+        };
+
+        await pipeline.GenerateDraftAsync(Ticket(CustomerMessage("Rechnung?")), request, CancellationToken.None);
+
+        var sent = chatClient.LastMessages!;
+        Assert.Equal(ChatRole.Assistant, sent[2].Role);
+        Assert.Equal("Hallo Jane, die Rechnung folgt.", sent[2].Text);
+        Assert.Equal("make it warmer", sent[3].Text);
+        // The new instruction is always last so the model acts on it.
+        Assert.Equal("translate to English", sent[^1].Text);
+    }
+
+    [Fact]
+    public async Task StreamsDeltasInOrder()
+    {
+        var pipeline = CreatePipeline(new FakeChatClient("Hallo ", "Jane, ", "danke."));
+
+        var chunks = new List<DraftChunk>();
+        await foreach (var chunk in pipeline.StreamDraftAsync(
+            Ticket(CustomerMessage("Hallo")),
+            DraftRequest.Initial,
+            CancellationToken.None))
+        {
+            chunks.Add(chunk);
+        }
+
+        Assert.Equal(
+            "Hallo Jane, danke.",
+            string.Concat(chunks.OfType<DraftChunk.Delta>().Select(d => d.Text)));
+    }
+
+    [Fact]
+    public async Task StreamYieldsInsufficientWithoutCallingTheModel()
+    {
+        var chatClient = new FakeChatClient("never");
+        var pipeline = CreatePipeline(chatClient);
+
+        var chunks = new List<DraftChunk>();
+        await foreach (var chunk in pipeline.StreamDraftAsync(
+            Ticket(AgentMessage("only agent")),
+            DraftRequest.Initial,
+            CancellationToken.None))
+        {
+            chunks.Add(chunk);
+        }
+
+        Assert.IsType<DraftChunk.Insufficient>(Assert.Single(chunks));
+        Assert.Null(chatClient.LastMessages);
     }
 
     private static DraftingPipeline CreatePipeline(IChatClient chatClient) =>
@@ -72,37 +143,23 @@ public sealed class DraftingPipelineTests
         Messages = messages,
     };
 
-    private static TicketMessage CustomerMessage(string text) => new()
+    private static TicketMessage CustomerMessage(string text) => Message(1, fromAgent: false, isNote: false, text);
+
+    private static TicketMessage AgentMessage(string text) => Message(2, fromAgent: true, isNote: false, text);
+
+    private static TicketMessage InternalNote(string text) => Message(3, fromAgent: true, isNote: true, text);
+
+    private static TicketMessage Message(long id, bool fromAgent, bool isNote, string text) => new()
     {
-        Id = 1,
-        FromAgent = false,
-        IsInternalNote = false,
+        Id = id,
+        FromAgent = fromAgent,
+        IsInternalNote = isNote,
         Text = text,
-        SenderName = "Jane Doe",
+        SenderName = fromAgent ? "Agent" : "Jane Doe",
         SentAt = DateTimeOffset.UtcNow,
     };
 
-    private static TicketMessage AgentMessage(string text) => new()
-    {
-        Id = 2,
-        FromAgent = true,
-        IsInternalNote = false,
-        Text = text,
-        SenderName = "Agent",
-        SentAt = DateTimeOffset.UtcNow,
-    };
-
-    private static TicketMessage InternalNote(string text) => new()
-    {
-        Id = 3,
-        FromAgent = true,
-        IsInternalNote = true,
-        Text = text,
-        SenderName = "Agent",
-        SentAt = DateTimeOffset.UtcNow,
-    };
-
-    private sealed class FakeChatClient(string reply) : IChatClient
+    private sealed class FakeChatClient(params string[] reply) : IChatClient
     {
         public List<ChatMessage>? LastMessages { get; private set; }
 
@@ -112,13 +169,21 @@ public sealed class DraftingPipelineTests
             CancellationToken cancellationToken = default)
         {
             LastMessages = messages.ToList();
-            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, reply)));
+            return Task.FromResult(new ChatResponse(new ChatMessage(ChatRole.Assistant, string.Concat(reply))));
         }
 
-        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
             IEnumerable<ChatMessage> messages,
             ChatOptions? options = null,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            LastMessages = messages.ToList();
+            foreach (var part in reply)
+            {
+                await Task.Yield();
+                yield return new ChatResponseUpdate(ChatRole.Assistant, part);
+            }
+        }
 
         public object? GetService(Type serviceType, object? serviceKey = null) => null;
 
