@@ -60,6 +60,20 @@ public static class DraftEndpoints
 
             StartEventStream(http);
 
+            // Emitted as soon as the (potentially slow) Gorgias fetch completes, so the
+            // panel can show a ticket header while the model warms up.
+            await WriteEventAsync(
+                http.Response,
+                "ticket",
+                new
+                {
+                    customerName = ticket.Customer?.Name,
+                    subject = ticket.Subject,
+                    language = ticket.Language,
+                    messageCount = ticket.Messages.Count(m => !m.IsInternalNote),
+                },
+                cancellationToken);
+
             var draftId = Guid.NewGuid().ToString("N");
             try
             {
@@ -84,11 +98,7 @@ public static class DraftEndpoints
                     }
                 }
 
-                await WriteEventAsync(
-                    http.Response,
-                    "done",
-                    new { draftId, ticketId, language = ticket.Language },
-                    cancellationToken);
+                await WriteEventAsync(http.Response, "done", new { draftId, ticketId }, cancellationToken);
             }
             catch (OperationCanceledException)
             {

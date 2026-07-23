@@ -6,9 +6,17 @@ import type { ChatTurn } from './state';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5249';
 
+export type TicketInfo = {
+  readonly customerName: string | null;
+  readonly subject: string | null;
+  readonly language: string | null;
+  readonly messageCount: number;
+};
+
 export type StreamEvent =
+  | { readonly kind: 'ticket'; readonly ticket: TicketInfo }
   | { readonly kind: 'delta'; readonly text: string }
-  | { readonly kind: 'done'; readonly language: string | null }
+  | { readonly kind: 'done' }
   | { readonly kind: 'insufficient'; readonly message: string }
   | { readonly kind: 'error'; readonly message: string };
 
@@ -86,13 +94,20 @@ function parseFrame(frame: string): StreamEvent | null {
   }
 
   switch (name) {
+    case 'ticket':
+      return {
+        kind: 'ticket',
+        ticket: {
+          customerName: typeof parsed.customerName === 'string' ? parsed.customerName : null,
+          subject: typeof parsed.subject === 'string' ? parsed.subject : null,
+          language: typeof parsed.language === 'string' ? parsed.language : null,
+          messageCount: typeof parsed.messageCount === 'number' ? parsed.messageCount : 0,
+        },
+      };
     case 'delta':
       return typeof parsed.text === 'string' ? { kind: 'delta', text: parsed.text } : null;
     case 'done':
-      return {
-        kind: 'done',
-        language: typeof parsed.language === 'string' ? parsed.language : null,
-      };
+      return { kind: 'done' };
     case 'insufficient':
       return {
         kind: 'insufficient',

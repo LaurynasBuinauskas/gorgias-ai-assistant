@@ -9,6 +9,9 @@ export type PanelContext = { readonly ticketId: string; readonly account: string
 /** "assistant" = a draft the model produced, "agent" = an instruction the support agent gave. */
 export type ChatTurn = { readonly role: 'assistant' | 'agent'; readonly text: string };
 
+/** Reading = fetching the ticket from Gorgias; writing = the model is producing tokens. */
+export type GeneratePhase = 'reading' | 'writing';
+
 export type PanelState =
   | { readonly status: 'unauthenticated' }
   | { readonly status: 'idle'; readonly context: PanelContext; readonly turns: readonly ChatTurn[] }
@@ -16,6 +19,7 @@ export type PanelState =
       readonly status: 'generating';
       readonly context: PanelContext;
       readonly turns: readonly ChatTurn[];
+      readonly phase: GeneratePhase;
       readonly partial: string;
     }
   | {
@@ -36,6 +40,7 @@ export type PanelEvent =
   | { readonly type: 'signed_out' }
   | { readonly type: 'context'; readonly context: PanelContext }
   | { readonly type: 'generate'; readonly instruction?: string }
+  | { readonly type: 'writing' }
   | { readonly type: 'delta'; readonly text: string }
   | { readonly type: 'completed' }
   | { readonly type: 'insufficient'; readonly message: string }
@@ -71,12 +76,16 @@ export function reduce(state: PanelState, event: PanelEvent): PanelState {
       const turns = event.instruction
         ? [...state.turns, { role: 'agent', text: event.instruction } as const]
         : state.turns;
-      return { status: 'generating', context: state.context, turns, partial: '' };
+      return { status: 'generating', context: state.context, turns, phase: 'reading', partial: '' };
     }
 
+    case 'writing':
+      return state.status === 'generating' ? { ...state, phase: 'writing' } : state;
+
     case 'delta':
+      // A token implies the fetch is done, even if the 'writing' event was missed.
       return state.status === 'generating'
-        ? { ...state, partial: state.partial + event.text }
+        ? { ...state, phase: 'writing', partial: state.partial + event.text }
         : state;
 
     case 'completed': {

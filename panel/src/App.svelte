@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onMount, tick } from 'svelte';
 import { copilotReady, parseCopilotContext, resolveShellOrigin } from './lib/contract';
+import { isEnglish, languageName } from './lib/language';
 import {
   initialState,
   type PanelContext,
@@ -8,14 +9,15 @@ import {
   type PanelState,
   reduce,
 } from './lib/state';
-import { streamDraft } from './lib/stream';
+import { streamDraft, type TicketInfo } from './lib/stream';
 
 const TOKEN_KEY = 'copilot:token';
 // The one origin this panel exchanges messages with: the extension shell, or the dev harness.
 const SHELL_ORIGIN = resolveShellOrigin();
 
-const QUICK_ACTIONS = [
-  { label: 'Translate to English', instruction: 'Translate the reply to English.' },
+type QuickAction = { readonly label: string; readonly instruction: string };
+
+const BASE_ACTIONS: readonly QuickAction[] = [
   { label: 'Friendlier', instruction: 'Make the reply warmer and more personal.' },
   { label: 'Shorter', instruction: 'Make the reply noticeably shorter, keeping every fact.' },
   { label: 'More formal', instruction: 'Make the reply more formal and professional.' },
@@ -28,6 +30,7 @@ let token = $state(
 );
 let panel = $state<PanelState>(initialState);
 let context = $state<PanelContext | null>(null);
+let ticketInfo = $state<TicketInfo | null>(null);
 let instruction = $state('');
 let copiedIndex = $state<number | null>(null);
 let scroller = $state<HTMLElement | null>(null);
@@ -36,6 +39,31 @@ const busy = $derived(panel.status === 'generating');
 const turns = $derived(panel.status === 'unauthenticated' ? [] : panel.turns);
 const hasDraft = $derived(turns.some((t) => t.role === 'assistant'));
 const lastDraft = $derived([...turns].reverse().find((t) => t.role === 'assistant')?.text ?? '');
+const canSend = $derived(instruction.trim().length > 0 || hasDraft);
+
+// The customer's language earns a one-tap translate action, since drafts default to English.
+const quickActions = $derived.by<QuickAction[]>(() => {
+  const name = languageName(ticketInfo?.language);
+  const translate =
+    name && !isEnglish(ticketInfo?.language)
+      ? [{ label: `Translate to ${name}`, instruction: `Translate the reply to ${name}.` }]
+      : [];
+  return [...translate, ...BASE_ACTIONS];
+});
+
+const ticketMeta = $derived.by(() => {
+  if (!ticketInfo) return '';
+  const count = ticketInfo.messageCount;
+  const messages = `${count} ${count === 1 ? 'message' : 'messages'}`;
+  const name = languageName(ticketInfo.language);
+  return name ? `${name} · ${messages}` : messages;
+});
+
+const statusLabel = $derived.by(() => {
+  if (panel.status !== 'generating' || panel.partial.length > 0) return null;
+  if (panel.phase === 'writing') return 'Writing the reply…';
+  return hasDraft ? 'Revising…' : 'Reading the ticket…';
+});
 
 function dispatch(event: PanelEvent) {
   panel = reduce(panel, event);
@@ -65,7 +93,9 @@ onMount(() => {
     if (!parsed) return;
 
     const next: PanelContext = { ticketId: parsed.ticketId, account: parsed.account };
+    const changed = next.ticketId !== context?.ticketId;
     context = next;
+    if (changed) ticketInfo = null;
     if (token.trim().length > 0 && panel.status !== 'unauthenticated') {
       dispatch({ type: 'context', context: next });
     }
@@ -98,7 +128,10 @@ async function run(newInstruction?: string) {
     : { turns: history };
 
   for await (const event of streamDraft(token.trim(), context.ticketId, payload)) {
-    if (event.kind === 'delta') {
+    if (event.kind === 'ticket') {
+      ticketInfo = event.ticket;
+      dispatch({ type: 'writing' });
+    } else if (event.kind === 'delta') {
       dispatch({ type: 'delta', text: event.text });
       void scrollToBottom();
     } else if (event.kind === 'done') {
@@ -115,6 +148,11 @@ async function run(newInstruction?: string) {
   void scrollToBottom();
 }
 
+function send() {
+  if (busy) return;
+  run(instruction.trim() || undefined);
+}
+
 async function copy(text: string, index: number) {
   await navigator.clipboard.writeText(text);
   copiedIndex = index;
@@ -122,9 +160,9 @@ async function copy(text: string, index: number) {
 }
 
 function onComposerKeydown(event: KeyboardEvent) {
-  if (event.key === 'Enter' && !event.shiftKey) {
+  if (event.key === 'Enter' && !event.shiftKey && canSend) {
     event.preventDefault();
-    if (instruction.trim()) void run(instruction.trim());
+    send();
   }
 }
 </script>
@@ -140,6 +178,14 @@ function onComposerKeydown(event: KeyboardEvent) {
     {/if}
   </header>
 
+  {#if ticketInfo}
+    <div class="ticket-bar">
+      <div class="who">{ticketInfo.customerName ?? 'Customer'}</div>
+      {#if ticketInfo.subject}<div class="subject">{ticketInfo.subject}</div>{/if}
+      <div class="meta">{ticketMeta}</div>
+    </div>
+  {/if}
+
   {#if token.trim().length === 0}
     <section class="pad">
       <label for="token">Access token</label>
@@ -151,12 +197,14 @@ function onComposerKeydown(event: KeyboardEvent) {
   {:else}
     <div class="scroll" bind:this={scroller}>
       {#if turns.length === 0 && panel.status !== 'generating'}
-        <div class="empty">
-          <p class="empty-title">Draft a reply</p>
-          <p class="empty-sub">
-            I'll read the ticket and write a reply in the customer's language. Then ask me to
-            adjust it — shorter, warmer, or translated.
+        <div class="welcome">
+          <p class="welcome-title">How can I help with this ticket?</p>
+          <p class="welcome-sub">
+            I'll read the conversation and draft a reply in English. Ask me to translate it
+            or change the tone once it's ready.
           </p>
+          <button class="primary big" onclick={() => run()}>✨ Generate a reply</button>
+          <p class="welcome-or">or type your own instruction below</p>
         </div>
       {/if}
 
@@ -173,10 +221,14 @@ function onComposerKeydown(event: KeyboardEvent) {
         {/if}
       {/each}
 
-      {#if panel.status === 'generating'}
+      {#if panel.status === 'generating' && panel.partial.length > 0}
         <div class="turn assistant">
           <div class="draft streaming">{panel.partial}<span class="caret"></span></div>
         </div>
+      {/if}
+
+      {#if statusLabel}
+        <div class="working"><span class="spinner"></span>{statusLabel}</div>
       {/if}
 
       {#if panel.status === 'insufficient_data'}
@@ -190,41 +242,33 @@ function onComposerKeydown(event: KeyboardEvent) {
     <footer>
       {#if hasDraft && !busy}
         <div class="chips">
-          {#each QUICK_ACTIONS as action (action.label)}
+          {#each quickActions as action (action.label)}
             <button class="chip" onclick={() => run(action.instruction)}>{action.label}</button>
           {/each}
         </div>
       {/if}
 
-      {#if !hasDraft && turns.length === 0}
-        <button class="primary block" onclick={() => run()} disabled={busy}>
-          {busy ? 'Writing…' : 'Generate reply'}
-        </button>
-      {:else}
-        <div class="composer">
-          <textarea
-            rows="2"
-            bind:value={instruction}
-            onkeydown={onComposerKeydown}
-            placeholder="Ask for a change — e.g. “translate to English”"
-            disabled={busy}
-          ></textarea>
-          <div class="composer-actions">
-            <button
-              class="primary"
-              onclick={() => (instruction.trim() ? run(instruction.trim()) : run())}
-              disabled={busy}
-            >
-              {busy ? 'Writing…' : instruction.trim() ? 'Send' : 'Regenerate'}
+      <div class="composer">
+        <textarea
+          rows="2"
+          bind:value={instruction}
+          onkeydown={onComposerKeydown}
+          placeholder={hasDraft
+            ? 'Ask for a change — e.g. “translate to German”'
+            : 'Ask for something specific — e.g. “apologise and offer a refund”'}
+          disabled={busy}
+        ></textarea>
+        <div class="composer-actions">
+          <button class="primary" onclick={send} disabled={busy || !canSend}>
+            {busy ? 'Working…' : instruction.trim() ? 'Send' : 'Regenerate'}
+          </button>
+          {#if hasDraft && !busy}
+            <button class="ghost" onclick={() => copy(lastDraft, -1)}>
+              {copiedIndex === -1 ? '✓ Copied' : 'Copy latest'}
             </button>
-            {#if lastDraft && !busy}
-              <button class="ghost" onclick={() => copy(lastDraft, -1)}>
-                {copiedIndex === -1 ? '✓ Copied' : 'Copy latest'}
-              </button>
-            {/if}
-          </div>
+          {/if}
         </div>
-      {/if}
+      </div>
     </footer>
   {/if}
 </main>
@@ -290,6 +334,28 @@ function onComposerKeydown(event: KeyboardEvent) {
     font-variant-numeric: tabular-nums;
   }
 
+  .ticket-bar {
+    flex: none;
+    padding: 0.55rem 0.9rem;
+    background: #eef3f9;
+    border-bottom: 1px solid var(--border);
+  }
+  .ticket-bar .who {
+    font-weight: 600;
+  }
+  .ticket-bar .subject {
+    color: #374151;
+    font-size: 0.84rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ticket-bar .meta {
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin-top: 0.1rem;
+  }
+
   .scroll {
     flex: 1;
     overflow-y: auto;
@@ -307,18 +373,31 @@ function onComposerKeydown(event: KeyboardEvent) {
   }
   .empty {
     color: var(--muted);
+  }
+
+  .welcome {
     text-align: center;
     padding: 1.5rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
   }
-  .empty-title {
+  .welcome-title {
     font-weight: 600;
     color: #111827;
-    margin: 0 0 0.35rem;
-  }
-  .empty-sub {
     margin: 0;
+  }
+  .welcome-sub {
+    margin: 0 0 0.4rem;
+    color: var(--muted);
     line-height: 1.5;
     font-size: 0.86rem;
+  }
+  .welcome-or {
+    margin: 0.2rem 0 0;
+    color: #9ca3af;
+    font-size: 0.8rem;
   }
 
   .turn.agent {
@@ -354,6 +433,28 @@ function onComposerKeydown(event: KeyboardEvent) {
     vertical-align: text-bottom;
     margin-left: 2px;
     animation: pulse 0.9s steps(2) infinite;
+  }
+
+  .working {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--muted);
+    font-size: 0.86rem;
+    padding: 0.2rem 0.1rem;
+  }
+  .spinner {
+    width: 13px;
+    height: 13px;
+    border: 2px solid #cbd5e1;
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .notice {
@@ -444,8 +545,9 @@ function onComposerKeydown(event: KeyboardEvent) {
     color: #fff;
     font-weight: 500;
   }
-  .block {
-    width: 100%;
+  .primary.big {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.95rem;
   }
   .ghost {
     background: transparent;

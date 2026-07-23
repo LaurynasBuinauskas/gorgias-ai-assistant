@@ -11,6 +11,26 @@ function drafted(text = 'Hallo Jane'): PanelState {
   return reduce(state, { type: 'completed' });
 }
 
+describe('generate phase', () => {
+  it('starts in reading, then flips to writing', () => {
+    const reading = reduce(reduce(initialState, { type: 'authenticated', context }), {
+      type: 'generate',
+    });
+    expect(reading).toMatchObject({ status: 'generating', phase: 'reading', partial: '' });
+    expect(reduce(reading, { type: 'writing' })).toMatchObject({ phase: 'writing' });
+  });
+
+  it('a delta implies writing even if the writing event was missed', () => {
+    const reading = reduce(reduce(initialState, { type: 'authenticated', context }), {
+      type: 'generate',
+    });
+    expect(reduce(reading, { type: 'delta', text: 'x' })).toMatchObject({
+      phase: 'writing',
+      partial: 'x',
+    });
+  });
+});
+
 describe('panel state machine', () => {
   it('starts unauthenticated', () => {
     expect(initialState.status).toBe('unauthenticated');
