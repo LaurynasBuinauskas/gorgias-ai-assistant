@@ -175,9 +175,11 @@ Goal: the ~200-line MV3 shell, done once, correctly.
       clipboard, kill switch, and "no ticket content leaves via the page".
 
 Exit criteria: load-unpacked extension shows the local panel on a Gorgias ticket,
-survives ticket navigation, falls back to floating, checklist passes. **Code complete
-and unit-tested; the in-Chrome checklist run is pending** (it needs a signed-in Gorgias
-session, so it's a human step).
+survives ticket navigation, falls back to floating, checklist passes.
+**Core loop verified in Chrome against a live Gorgias ticket** — panel mounts floating,
+ticket ID picked up from the URL, draft generated and regenerated end to end. The
+remaining checklist items (ticket switching / single-iframe reuse, back-forward, kill
+switch, no-ticket views) have not been run yet.
 
 ## Stage 6 — Deployment
 
