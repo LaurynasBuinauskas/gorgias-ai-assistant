@@ -12,6 +12,32 @@ settings or GitHub variables — each needs the other's hostname.
 
 ---
 
+## Provisioned instance (pilot)
+
+What actually exists today, and where it differs from the defaults below.
+
+| Resource | Value |
+|---|---|
+| Resource group | `gorgias-assistant-rg` |
+| App Service plan | `gorgias-assistant-plan` — Linux **B1**, **Sweden Central** |
+| API | `gorgias-assistant-api` → https://gorgias-assistant-api.azurewebsites.net |
+| Panel | `gorgias-assistant-panel` → https://icy-grass-0e781a40f.7.azurestaticapps.net (**East US 2**) |
+| Key Vault | `gorgias-assistant-kv` (Sweden Central) |
+
+Deviations worth knowing:
+
+- **West Europe rejected new resources** (`RequestDisallowedByAzure` — "region is currently
+  not accepting new customers"), and North Europe had no B1 quota. Compute landed in
+  **Sweden Central**; Static Web Apps in **East US 2** (it fronts a global CDN, so its home
+  region has little effect on latency).
+- **`Microsoft.KeyVault` had to be registered** first — new subscriptions don't enable every
+  resource provider: `az provider register --namespace Microsoft.KeyVault` (~70 s).
+- **Key Vault references can't be set through `az.cmd` inline on Windows** — the `(` and `)`
+  break the cmd wrapper. Pass them in a JSON file instead:
+  `az webapp config appsettings set ... --settings @settings.json`.
+
+---
+
 ## 0. Prerequisites
 
 - An Azure subscription (a pay-as-you-go one is fine; this stack is ~$14/month, less on F1).
