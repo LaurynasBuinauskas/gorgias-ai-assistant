@@ -1,15 +1,33 @@
 # Azure setup — one-time runbook
 
-Provisioning is done by hand (CLI) and captured here rather than in Bicep: it is a handful
-of resources for a single pilot, and reproducing them is rare. Run this once, then the
-GitHub Actions workflows deploy on every merge.
+Everything needed to run the assistant in the cloud. Provisioning is CLI-by-hand and
+captured here rather than in Bicep: it is a handful of resources for a single pilot and
+reproducing them is rare.
 
 **Secrets never live in GitHub or in app config.** They sit in Key Vault; App Service
 resolves them at startup through its managed identity. The deploy workflows never see them.
 
+**Order matters:** create *both* the App Service and the Static Web App before setting app
+settings or GitHub variables — each needs the other's hostname.
+
+---
+
+## 0. Prerequisites
+
+- An Azure subscription (a pay-as-you-go one is fine; this stack is ~$14/month, less on F1).
+- Azure CLI: `az --version` — install from https://aka.ms/azcli if missing.
+- Sign in and pick the subscription:
+
+```sh
+az login
+az account set --subscription "<subscription-name-or-id>"
+```
+
+- Admin access to the GitHub repo (to add secrets and variables).
+
 ## 1. Variables
 
-Pick globally-unique names for `API_APP`, `KV`, and `SWA`.
+`API_APP`, `KV`, and `SWA` must be **globally unique** — add a suffix if creation fails.
 
 ```sh
 RG=gorgias-assistant-rg
@@ -20,29 +38,37 @@ KV=gorgias-assistant-kv
 SWA=gorgias-assistant-panel
 ```
 
-## 2. Resource group, App Service, Static Web App
+## 2. Create the resources
 
 ```sh
 az group create -n $RG -l $LOC
 
+# B1 (~$13/mo) supports Always On, which avoids cold starts. For a throwaway demo
+# swap --sku B1 for --sku F1 (free) and skip the Always On line below.
 az appservice plan create -g $RG -n $PLAN --is-linux --sku B1
 
 az webapp create -g $RG -p $PLAN -n $API_APP --runtime "DOTNETCORE:10.0"
 
+az webapp update -g $RG -n $API_APP --https-only true
+az webapp config set -g $RG -n $API_APP --always-on true   # skip on F1
+
+# Static Web Apps exists in a limited set of regions.
 az staticwebapp create -g $RG -n $SWA -l westeurope
 ```
 
-> If `DOTNETCORE:10.0` is rejected, check what's offered with
-> `az webapp list-runtimes --os linux | grep -i dotnet`. If .NET 10 isn't there yet,
-> publish self-contained instead — add
-> `--self-contained --runtime linux-x64` to the `dotnet publish` step in
-> `.github/workflows/deploy-api.yml` and create the app with `--runtime "DOTNETCORE:8.0"`.
+> **If `DOTNETCORE:10.0` is rejected**, see what's available:
+> `az webapp list-runtimes --os linux | grep -i dotnet`
+> If .NET 10 isn't offered yet, create the app with `--runtime "DOTNETCORE:8.0"` and make
+> the deploy self-contained: add `--self-contained --runtime linux-x64` to the
+> `dotnet publish` line in `.github/workflows/deploy-api.yml`.
 
-Note the two hostnames — you need them below:
+Capture both hostnames — you need them in steps 5 and 7:
 
 ```sh
-az webapp show -g $RG -n $API_APP --query defaultHostName -o tsv
-az staticwebapp show -g $RG -n $SWA --query defaultHostname -o tsv
+API_HOST=$(az webapp show -g $RG -n $API_APP --query defaultHostName -o tsv)
+SWA_HOST=$(az staticwebapp show -g $RG -n $SWA --query defaultHostname -o tsv)
+echo "API:   https://$API_HOST"
+echo "Panel: https://$SWA_HOST"
 ```
 
 ## 3. Key Vault + managed identity
@@ -58,23 +84,32 @@ KV_ID=$(az keyvault show -g $RG -n $KV --query id -o tsv)
 az role assignment create --assignee $PRINCIPAL --role "Key Vault Secrets User" --scope $KV_ID
 ```
 
-Store the secrets (same values you have in local user-secrets; the bearer token should be
-a fresh long random string, **not** `local-dev-token`):
+You also need permission to write secrets yourself:
 
 ```sh
-az keyvault secret set --vault-name $KV -n gorgias-apikey  --value "<gorgias-api-key>"
-az keyvault secret set --vault-name $KV -n openai-apikey   --value "<openai-api-key>"
-az keyvault secret set --vault-name $KV -n api-bearertoken --value "<long-random-string>"
+ME=$(az ad signed-in-user show --query id -o tsv)
+az role assignment create --assignee $ME --role "Key Vault Secrets Officer" --scope $KV_ID
 ```
 
-## 4. App settings
+## 4. Store the secrets
 
-Non-secret values are set directly; secrets are **Key Vault references** that App Service
-resolves via the managed identity.
+Same values as your local user-secrets, except the bearer token, which must be a **fresh
+long random string** — never `local-dev-token`.
 
 ```sh
-SWA_HOST=$(az staticwebapp show -g $RG -n $SWA --query defaultHostname -o tsv)
+# Generate a production bearer token
+openssl rand -base64 32     # or: pwsh -c "[guid]::NewGuid().ToString('N')+[guid]::NewGuid().ToString('N')"
 
+az keyvault secret set --vault-name $KV -n gorgias-apikey  --value "<gorgias-api-key>"
+az keyvault secret set --vault-name $KV -n openai-apikey   --value "<openai-api-key>"
+az keyvault secret set --vault-name $KV -n api-bearertoken --value "<generated-token>"
+```
+
+## 5. App settings
+
+Non-secrets set directly; secrets as **Key Vault references** resolved via managed identity.
+
+```sh
 az webapp config appsettings set -g $RG -n $API_APP --settings \
   Gorgias__Subdomain="timeresistance" \
   Gorgias__Email="<gorgias-login-email>" \
@@ -84,71 +119,125 @@ az webapp config appsettings set -g $RG -n $API_APP --settings \
   Api__AllowedOrigins__0="https://$SWA_HOST"
 ```
 
-`Api__AllowedOrigins__0` is the **only** origin CORS will accept in production (dev allows
-any loopback origin). Add more indexes (`__1`, `__2`) only with a reason.
+`Api__AllowedOrigins__0` is the **only** origin CORS accepts in production (dev allows any
+loopback origin). Add `__1`, `__2` only with a reason.
 
-Verify the references resolved — each should show `Status: Resolved`:
+Confirm the references resolved (RBAC can take a few minutes to propagate — if they show
+as unresolved, wait, then `az webapp restart -g $RG -n $API_APP`):
 
 ```sh
-az webapp config appsettings list -g $RG -n $API_APP --query "[?contains(name,'ApiKey')]"
+az webapp config appsettings list -g $RG -n $API_APP -o table
 ```
 
-## 5. GitHub secrets and variables
+## 6. Enable publish-profile deployments
 
-Repo → Settings → Secrets and variables → Actions.
+New App Services often ship with **SCM basic authentication disabled**, which makes
+`azure/webapps-deploy` fail with a 401 even though everything else is correct.
 
-**Secrets:**
+```sh
+az resource update -g $RG --namespace Microsoft.Web --resource-type basicPublishingCredentialsPolicies \
+  --name scm --parent sites/$API_APP --set properties.allow=true
+```
 
-| Name | Value |
+(Portal equivalent: App Service → Settings → Configuration → General settings →
+**SCM Basic Auth Publishing Credentials** → On.)
+
+## 7. GitHub secrets and variables
+
+Repo → **Settings → Secrets and variables → Actions**.
+
+**Secrets** (tab: Secrets):
+
+| Name | Get it with |
 |---|---|
-| `AZURE_API_PUBLISH_PROFILE` | output of `az webapp deployment list-publishing-profiles -g $RG -n $API_APP --xml` |
-| `AZURE_SWA_TOKEN` | output of `az staticwebapp secrets list -g $RG -n $SWA --query "properties.apiKey" -o tsv` |
+| `AZURE_API_PUBLISH_PROFILE` | `az webapp deployment list-publishing-profiles -g $RG -n $API_APP --xml` (paste the whole XML) |
+| `AZURE_SWA_TOKEN` | `az staticwebapp secrets list -g $RG -n $SWA --query "properties.apiKey" -o tsv` |
 
-**Variables:**
+**Variables** (tab: Variables):
 
 | Name | Value |
 |---|---|
 | `AZURE_API_APP_NAME` | `$API_APP` |
-| `API_ORIGIN` | `https://<api-hostname>` |
-| `PANEL_ORIGIN` | `https://<swa-hostname>` |
+| `API_ORIGIN` | `https://$API_HOST` |
+| `PANEL_ORIGIN` | `https://$SWA_HOST` |
 
-## 6. Deploy
+## 8. Deploy
 
-Push to `main` (or run the workflows manually from the Actions tab):
+Actions tab → run each workflow (or push a change to its folder):
 
-- **Deploy API** → App Service
-- **Deploy panel** → Static Web Apps (bakes `API_ORIGIN` into the bundle)
-- **Build extension** → downloadable zip artifact with the deployed origins baked in
+1. **Deploy API** → App Service.
+2. **Deploy panel** → Static Web Apps. Bakes `API_ORIGIN` into the bundle, so **re-run this
+   whenever the API URL changes**.
+3. **Build extension** → downloadable zip with both deployed origins baked in.
 
-## 7. Post-deploy checks
+## 9. Verify the deployment
 
 ```sh
-# 1. API is up (public endpoint, no token needed)
-curl https://<api-hostname>/v1/config
+# 1. API is up (public endpoint — the shell reads this without a token)
+curl https://$API_HOST/v1/config
 
 # 2. Auth still guards drafts — expect 401
-curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<api-hostname>/v1/tickets/1/drafts
+curl -s -o /dev/null -w "%{http_code}\n" -X POST https://$API_HOST/v1/tickets/1/drafts
 
-# 3. A real draft — expect 200 and a body
+# 3. A real draft — expect 200 and a German reply
 curl -X POST -H "Authorization: Bearer <api-bearertoken>" \
-  https://<api-hostname>/v1/tickets/<ticket-id>/drafts
+  https://$API_HOST/v1/tickets/<real-ticket-id>/drafts
 
-# 4. The CSP header that stops arbitrary sites framing the panel
-curl -sI https://<swa-hostname> | grep -i content-security-policy
+# 4. The header that stops arbitrary sites framing the panel
+curl -sI https://$SWA_HOST | grep -i content-security-policy
 ```
 
-Check 4 must return `frame-ancestors 'self' https://*.gorgias.com`. `'self'` is there so the
-bundled `harness.html` can still frame the panel for demos; Gorgias is the only external
-site allowed to.
+Check 4 must return `frame-ancestors 'self' https://*.gorgias.com`. `'self'` is present so
+the bundled `harness.html` still works for demos; Gorgias is the only external site allowed.
 
-## Cost
+Then the browser check: open `https://$SWA_HOST/harness.html`, paste the production bearer
+token, enter a real ticket ID, and click **Generate reply**. That exercises the deployed
+panel → deployed API → Gorgias → OpenAI path without the extension.
+
+## 10. The extension, against the cloud
+
+Manual install — no Chrome Web Store needed:
+
+1. Actions → **Build extension** → open the run → download the
+   `gorgias-ai-assistant-extension` artifact.
+2. Unzip it somewhere permanent (the folder must stay on disk).
+3. `chrome://extensions` → **Developer mode** ON → **Load unpacked** → select the folder.
+4. Open a Gorgias ticket. The panel now talks to Azure, not localhost.
+5. Paste the **production** bearer token into the panel once (kept in `sessionStorage`).
+
+To repoint an already-installed build without rebuilding, run this in the extension's
+console: `chrome.storage.local.set({ panelOrigin: '…', apiOrigin: '…' })`.
+
+## 11. Gotchas
+
+- **SCM basic auth** — step 6. The single most common cause of a failing deploy.
+- **Do not set App Service → CORS in the portal.** The API handles CORS itself; the portal
+  setting intercepts requests and will conflict.
+- **Build-time URLs.** Both the panel (`VITE_API_URL`) and the extension
+  (`VITE_PANEL_ORIGIN` / `VITE_API_ORIGIN`) bake origins at build time. Change a hostname →
+  re-run the affected workflow.
+- **Key Vault RBAC propagation** takes a few minutes; restart the web app if references
+  show unresolved.
+- **F1 free tier** has a 60-min/day CPU quota and no Always On — fine for a short demo,
+  not for a pilot.
+- **Cold start** on first request after idle: the first draft may take noticeably longer.
+- **Application Insights is not wired into the code.** For the pilot, App Service log
+  streaming is enough:
+  `az webapp log tail -g $RG -n $API_APP`. Add the SDK when traces are actually needed.
+
+## 12. Cost and teardown
 
 | Resource | ~$/month |
 |---|---|
 | App Service B1 (Linux) | ~13 |
 | Static Web Apps (free tier) | 0 |
 | Key Vault | ~1 |
-| Application Insights (sampled) | 1–5 |
+| **Total infrastructure** | **~14** |
 
-To cut the largest line item, the App Service plan can be scaled to F1 (free) for a demo —
-it sleeps when idle and has no custom-domain SSL, but it costs nothing.
+LLM tokens are the only variable cost and are usage-proportional.
+
+Set a budget alert (Cost Management → Budgets), and to stop all charges after a demo:
+
+```sh
+az group delete -n $RG --yes --no-wait
+```
