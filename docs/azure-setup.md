@@ -241,3 +241,105 @@ Set a budget alert (Cost Management → Budgets), and to stop all charges after 
 ```sh
 az group delete -n $RG --yes --no-wait
 ```
+
+---
+
+# Appendix — the same thing in the Azure Portal
+
+Click-ops equivalent of sections 2–7, for anyone who prefers the UI. Same order applies:
+create both apps before setting app settings.
+
+### A. Resource group
+
+portal.azure.com → search **Resource groups** → **Create** → name `gorgias-assistant-rg`,
+region *West Europe* → **Review + create**.
+
+### B. App Service (the API)
+
+**Create a resource** → search **Web App** → **Create**:
+
+- Resource group: `gorgias-assistant-rg`
+- Name: `gorgias-assistant-api` (globally unique)
+- Publish: **Code** · Runtime stack: **.NET 10** (if absent, pick .NET 8 and use the
+  self-contained fallback in section 2) · OS: **Linux** · Region: *West Europe*
+- Pricing plan: **Create new** → **B1** (or **F1 Free** for a throwaway demo)
+
+→ **Review + create**. Then in the new app:
+
+- **Settings → Configuration → General settings**: *Always On* → **On** (skip on F1), and
+  **SCM Basic Auth Publishing Credentials** → **On** ← *deployments fail without this*
+- **Settings → TLS/SSL settings**: *HTTPS Only* → **On**
+
+### C. Static Web App (the panel)
+
+**Create a resource** → **Static Web App** → **Create**:
+
+- Name: `gorgias-assistant-panel` · Plan type: **Free** · Region: *West Europe*
+- Deployment source: **Other** — do **not** connect GitHub here; our workflow deploys with
+  a token, and letting the portal wire it up creates a second, conflicting workflow.
+
+→ **Review + create**. Then: **Overview** → copy the URL; **Settings → Manage deployment
+token** → copy the token (this is `AZURE_SWA_TOKEN`).
+
+### D. Key Vault
+
+**Create a resource** → **Key Vault** → **Create**:
+
+- Name: `gorgias-assistant-kv` · Region *West Europe* · Standard
+- **Access configuration** tab → Permission model: **Azure role-based access control (RBAC)**
+
+### E. Managed identity + access
+
+1. App Service → **Settings → Identity** → *System assigned* → **Status: On** → **Save**.
+2. Key Vault → **Access control (IAM)** → **Add role assignment** →
+   role **Key Vault Secrets User** → Members: **Managed identity** → pick your web app →
+   **Review + assign**.
+3. Repeat for yourself: role **Key Vault Secrets Officer** → Members: **User** → your
+   account. (Without this you cannot add secrets in the next step.)
+
+### F. Secrets
+
+Key Vault → **Objects → Secrets** → **Generate/Import**, three times:
+
+| Name | Value |
+|---|---|
+| `gorgias-apikey` | your Gorgias API key |
+| `openai-apikey` | your OpenAI key |
+| `api-bearertoken` | a long random string (not `local-dev-token`) |
+
+Open each one → click its current version → copy the **Secret Identifier** URL for the next step.
+
+### G. App settings
+
+App Service → **Settings → Environment variables** → **App settings** → **+ Add** for each:
+
+| Name | Value |
+|---|---|
+| `Gorgias__Subdomain` | `timeresistance` |
+| `Gorgias__Email` | your Gorgias login email |
+| `Gorgias__ApiKey` | `@Microsoft.KeyVault(SecretUri=<gorgias-apikey identifier>)` |
+| `OpenAi__ApiKey` | `@Microsoft.KeyVault(SecretUri=<openai-apikey identifier>)` |
+| `Api__BearerToken` | `@Microsoft.KeyVault(SecretUri=<api-bearertoken identifier>)` |
+| `Api__AllowedOrigins__0` | `https://<your-static-web-app-url>` |
+
+**Apply** → the app restarts. The three Key Vault rows should show a green
+**Key Vault Reference** status; a red one means the role assignment (step E) hasn't
+propagated — wait a few minutes and restart the app.
+
+### H. Publish profile
+
+App Service → **Overview** → **Download publish profile** (top toolbar). Open the file and
+copy its entire contents — that is `AZURE_API_PUBLISH_PROFILE`.
+
+### I. GitHub
+
+Repo → **Settings → Secrets and variables → Actions**:
+
+- **Secrets** tab → *New repository secret*: `AZURE_API_PUBLISH_PROFILE`, `AZURE_SWA_TOKEN`
+- **Variables** tab → *New repository variable*: `AZURE_API_APP_NAME`, `API_ORIGIN`
+  (`https://<api-url>`), `PANEL_ORIGIN` (`https://<swa-url>`)
+
+### J. Deploy
+
+Repo → **Actions** → run **Deploy API**, **Deploy panel**, **Build extension**.
+Then run the verification in section 9.
