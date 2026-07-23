@@ -23,6 +23,10 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # A missing API_ORIGIN would deploy a panel that calls localhost.
+      - name: Require API origin
+        run: test -n "${{ vars.API_ORIGIN }}" || { echo "::error::Repository variable API_ORIGIN is not set"; exit 1; }
+
       - run: pnpm install --frozen-lockfile
 
       # The API origin is baked into the bundle at build time.

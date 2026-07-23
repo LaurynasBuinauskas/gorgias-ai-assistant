@@ -26,6 +26,13 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # Without these the build silently produces a localhost extension that looks fine
+      # but cannot reach the deployed stack. Fail loudly instead.
+      - name: Require deployment origins
+        run: |
+          test -n "${{ vars.PANEL_ORIGIN }}" || { echo "::error::Repository variable PANEL_ORIGIN is not set"; exit 1; }
+          test -n "${{ vars.API_ORIGIN }}"   || { echo "::error::Repository variable API_ORIGIN is not set"; exit 1; }
+
       - run: pnpm install --frozen-lockfile
 
       # Origins are baked in so the demo build needs no storage override.

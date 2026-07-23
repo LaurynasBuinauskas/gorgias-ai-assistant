@@ -12,9 +12,11 @@ export type ShellConfig = {
 // Baked in at build time: a production build points at the deployed origins, a dev build
 // at localhost. The storage override below still wins, so one build can be repointed
 // without a rebuild.
+// `||` not `??`: an unset GitHub Actions variable arrives as an empty string, which
+// would otherwise become the origin and produce a silently broken build.
 const DEFAULTS = {
-  panelOrigin: import.meta.env.VITE_PANEL_ORIGIN ?? 'http://localhost:5173',
-  apiOrigin: import.meta.env.VITE_API_ORIGIN ?? 'http://localhost:5249',
+  panelOrigin: import.meta.env.VITE_PANEL_ORIGIN || 'http://localhost:5173',
+  apiOrigin: import.meta.env.VITE_API_ORIGIN || 'http://localhost:5249',
 } as const;
 
 type Origins = { panelOrigin: string; apiOrigin: string };

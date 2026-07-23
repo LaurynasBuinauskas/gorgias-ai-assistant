@@ -1,7 +1,8 @@
 // Client for the Copilot API. Every fetch handles failure explicitly and narrows the
 // two success shapes (drafted vs insufficient_data) by their `status` discriminator.
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:5249';
+// `||` not `??`: an unset GitHub Actions variable arrives as an empty string.
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5249';
 
 export type DraftOutcome =
   | {
