@@ -1,0 +1,32 @@
+name: Deploy API
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-api.yml'
+  workflow_dispatch:
+
+# Secrets/variables required (see docs/azure-setup.md):
+#   secret AZURE_API_PUBLISH_PROFILE — App Service publish profile XML
+#   var    AZURE_API_APP_NAME        — App Service name
+# Runtime secrets (Gorgias/OpenAI keys) are NOT handled here: App Service reads them
+# from Key Vault via its managed identity, so they never touch GitHub or this workflow.
+jobs:
+  deploy:
+    name: Publish to Azure App Service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - run: dotnet publish backend/Copilot.Api/Copilot.Api.csproj --configuration Release --output publish
+
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_API_APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
+          package: publish

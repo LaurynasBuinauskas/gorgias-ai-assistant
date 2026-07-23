@@ -185,24 +185,31 @@ switch, no-ticket views) have not been run yet.
 
 Goal: everything running in Azure inside the cost budget; security essentials verified.
 
-- [ ] Provision via Azure Portal/CLI, and capture the steps in a short
-      `docs/azure-setup.md` as you go — no Bicep/IaC for a handful of resources:
-      Container Apps (consumption, scale-to-zero — the backend is stateless so this is
-      free to enable), Static Web Apps (free), Key Vault + Managed Identity,
-      Application Insights (sampled). Optionally a blob container for the knowledge
-      file if it shouldn't ship inside the container image. **No database.**
-- [ ] CI/CD: panel → Static Web Apps on merge; backend container → Container Apps on
-      merge; extension zip built on manual trigger.
-- [ ] Security essentials (non-negotiable, and quick): SWA serves
-      `Content-Security-Policy: frame-ancestors https://*.gorgias.com` + `nosniff`
-      (verify present in deployed env); API CORS = exactly the panel origin; secrets
-      only in Key Vault — grep the extension and SPA bundles to confirm none leaked.
+- [x] Provisioning runbook written — `docs/azure-setup.md`, CLI steps captured rather
+      than Bicep (a handful of resources for one pilot): **App Service** (Linux B1;
+      the API is stateless so F1 free also works for a demo), Static Web Apps (free),
+      Key Vault + Managed Identity. **No database.**
+      *(Decision change: App Service replaces Container Apps — simpler for this pilot
+      and no container registry to run.)*
+- [x] CI/CD: `deploy-api.yml` → App Service, `deploy-panel.yml` → Static Web Apps
+      (bakes `API_ORIGIN` into the bundle), `build-extension.yml` → downloadable zip
+      artifact with deployed origins baked in.
+- [x] Secrets: Key Vault + Managed Identity via App Service **Key Vault references** —
+      no code change, and the deploy workflows never see a secret. GitHub holds only
+      the publish profile and the SWA token.
+- [x] Security essentials wired: SWA serves
+      `Content-Security-Policy: frame-ancestors 'self' https://*.gorgias.com` + `nosniff`
+      via `staticwebapp.config.json` (`'self'` so the bundled harness can still frame the
+      panel); API CORS = exactly `Api__AllowedOrigins__0` in production.
+- [ ] **Run the runbook** (needs an Azure subscription — a human step), then verify:
+      CSP header present, CORS restricted, and no secret in the extension or SPA bundle.
 - [ ] Confirm LLM provider DPA / no-training / zero-retention terms (launch gate —
       it's a reading task, not an engineering task, but it blocks launch).
 - [ ] Smoke test the deployed stack end to end with the load-unpacked extension.
 
-Exit criteria: production URL serves the panel; deployed API drafts from a sandbox
-ticket; the security essentials above verified.
+Exit criteria: production URL serves the panel; deployed API drafts from a real ticket;
+the security essentials above verified. **Pipelines and runbook are code-complete; the
+Azure provisioning run is pending.**
 
 ## Stage 7 — Pilot release (MVP done)
 

@@ -87,7 +87,7 @@ async function copy(text: string) {
 
 <main>
   <header>
-    <span class="brand">Copilot</span>
+    <span class="brand">AI Assistant</span>
     {#if panel.status !== 'unauthenticated'}
       <span class="ticket">Ticket #{panel.context.ticketId}</span>
     {/if}

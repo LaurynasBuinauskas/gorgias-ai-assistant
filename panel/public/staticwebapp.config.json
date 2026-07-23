@@ -1,0 +1,10 @@
+{
+  "globalHeaders": {
+    "Content-Security-Policy": "frame-ancestors 'self' https://*.gorgias.com",
+    "X-Content-Type-Options": "nosniff"
+  },
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/assets/*", "*.{css,js,png,svg,ico,json}"]
+  }
+}

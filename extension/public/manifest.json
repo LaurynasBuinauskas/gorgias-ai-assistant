@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Gorgias AI Copilot",
+  "name": "Gorgias AI Assistant",
   "version": "0.1.0",
-  "description": "Mounts the Copilot drafting panel beside the Gorgias ticket view.",
+  "description": "Mounts the AI drafting panel beside the Gorgias ticket view.",
   "permissions": ["storage"],
   "content_scripts": [
     {

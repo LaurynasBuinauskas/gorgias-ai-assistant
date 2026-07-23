@@ -1,0 +1,41 @@
+name: Build extension
+
+# The extension is installed by hand (Load unpacked / drag-in), not via the Chrome Web
+# Store, so this workflow only produces a downloadable zip. Run it from the Actions tab,
+# then download the artifact and unzip it for the demo machine.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'extension/**'
+      - '.github/workflows/build-extension.yml'
+
+# Variables required (see docs/azure-setup.md):
+#   var PANEL_ORIGIN — https://<swa-name>.azurestaticapps.net
+#   var API_ORIGIN   — https://<api-app>.azurewebsites.net
+jobs:
+  build:
+    name: Package unpacked extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Origins are baked in so the demo build needs no storage override.
+      - run: pnpm --filter @copilot/extension build
+        env:
+          VITE_PANEL_ORIGIN: ${{ vars.PANEL_ORIGIN }}
+          VITE_API_ORIGIN: ${{ vars.API_ORIGIN }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gorgias-ai-assistant-extension
+          path: extension/dist
+          if-no-files-found: error

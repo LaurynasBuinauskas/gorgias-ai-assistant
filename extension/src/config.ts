@@ -9,9 +9,12 @@ export type ShellConfig = {
   readonly anchorProbes: readonly string[];
 };
 
+// Baked in at build time: a production build points at the deployed origins, a dev build
+// at localhost. The storage override below still wins, so one build can be repointed
+// without a rebuild.
 const DEFAULTS = {
-  panelOrigin: 'http://localhost:5173',
-  apiOrigin: 'http://localhost:5249',
+  panelOrigin: import.meta.env.VITE_PANEL_ORIGIN ?? 'http://localhost:5173',
+  apiOrigin: import.meta.env.VITE_API_ORIGIN ?? 'http://localhost:5249',
 } as const;
 
 type Origins = { panelOrigin: string; apiOrigin: string };

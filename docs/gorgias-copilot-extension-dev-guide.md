@@ -52,14 +52,20 @@ Test target: use a low-traffic view or a Gorgias trial/sandbox account — never
 
 - Shell: `vite build` → `extension/dist` → zip. Version = `manifest.json` `version`, bumped per release, semver.
 - Panel: `vite build` → deployed by GitHub Actions to Azure Static Web Apps on merge.
-- Backend: container → Azure Container Apps on merge.
+- Backend: `dotnet publish` → Azure App Service on merge.
 - Extension upload automated with `chrome-webstore-upload-cli` in GitHub Actions (manual trigger, not on every merge — releases are deliberate).
 
 ## 5. Deployment / installation
 
 Three stages, in order of formality:
 
-1. **Solo dev:** Load unpacked (above). No accounts, no review.
+1. **Solo dev and demos:** Load unpacked. No accounts, no review, no store — this is a
+   fully supported way to run the extension, and it is what the demo uses. Run the
+   **Build extension** workflow, download the artifact, unzip it, then
+   `chrome://extensions` → Developer mode ON → **Load unpacked** → pick the folder.
+   Caveats: the folder must stay on disk, Chrome shows a "developer mode extensions"
+   notice on each launch, and there are no auto-updates (re-download and reload to
+   update). Fine for one demo machine; the store only becomes necessary for a fleet.
 2. **Team pilot & production — Chrome Web Store, Unlisted.**
    - One-time developer account, $5 fee.
    - Upload zip via Developer Dashboard → visibility **Unlisted** → submit.

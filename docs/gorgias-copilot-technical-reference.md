@@ -104,7 +104,7 @@ brand-voice exemplar index, or the optional ticket cache. When adopted:
 
 | Concern | Service | ~$/mo |
 |---|---|---|
-| API + ingest | Container Apps (consumption, scale-to-zero OK) | 0–5 |
+| API + ingest | App Service (Linux, B1; F1 free tier is enough for a demo) | 0–13 |
 | Data | None in MVP (knowledge file in container/blob); PostgreSQL Flexible B1ms in P2 | 0 (13–18 in P2) |
 | SPA | Static Web Apps (free tier) | 0 |
 | Secrets | Key Vault + Managed Identity | ~1 |
@@ -130,5 +130,5 @@ LLM tokens are the only variable cost; on-demand generation keeps it usage-propo
 
 - Contracts (shell↔panel messages, API DTOs) are versioned and append-only; breaking changes require a new version, and shell contract changes trigger the rare extension release.
 - Model/provider changes = config + eval run, never ad-hoc. Keep an eval harness of real anonymized tickets.
-- Prefer boring: one database, one container app, request/response before streaming, no new Azure service without a phase-linked justification.
+- Prefer boring: one database, one App Service, request/response before streaming, no new Azure service without a phase-linked justification.
 - Update this document when any decision here changes; it is the context primer for future Claude sessions.

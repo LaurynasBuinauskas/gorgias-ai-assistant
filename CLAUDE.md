@@ -57,7 +57,7 @@ docs/         # Technical reference + dev guide
 6. **Keep it cheap and boring.** The MVP has **no database**: knowledge lives in a
    precomputed embeddings file loaded in-memory, conversation state stays client-side
    (stateless backend), telemetry goes to Application Insights. PostgreSQL (pgvector)
-   arrives in P2 with the first feature that needs it. One container app,
+   arrives in P2 with the first feature that needs it. One App Service,
    request/response before streaming, no new Azure service without a phase-linked
    justification. Target ≤ $30/month at pilot scale (MVP runs at ~$1–6/month).
 7. **Contracts are versioned and append-only.** Shell↔panel postMessage types and API

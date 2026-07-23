@@ -22,7 +22,7 @@ function findAnchor(probes: readonly string[]): Element | null {
 export function mountPanel(panelOrigin: string, anchorProbes: readonly string[]): PanelFrame {
   const frame = document.createElement('iframe');
   frame.id = FRAME_ID;
-  frame.title = 'Gorgias AI Copilot';
+  frame.title = 'Gorgias AI Assistant';
   frame.allow = 'clipboard-write';
   // The panel pins its postMessage origin to whoever framed it.
   frame.src = `${panelOrigin}/?shellOrigin=${encodeURIComponent(window.location.origin)}`;
@@ -62,7 +62,7 @@ export function mountPanel(panelOrigin: string, anchorProbes: readonly string[])
     setVisible(visible) {
       frame.classList.toggle('copilot-hidden', !visible);
       toggle.classList.toggle('copilot-collapsed', !visible);
-      toggle.textContent = visible ? 'Hide Copilot' : 'Copilot';
+      toggle.textContent = visible ? 'Hide Assistant' : 'Assistant';
     },
   };
 
@@ -70,7 +70,7 @@ export function mountPanel(panelOrigin: string, anchorProbes: readonly string[])
   const toggle = document.createElement('button');
   toggle.id = TOGGLE_ID;
   toggle.type = 'button';
-  toggle.textContent = 'Hide Copilot';
+  toggle.textContent = 'Hide Assistant';
   toggle.addEventListener('click', () =>
     panel.setVisible(frame.classList.contains('copilot-hidden')),
   );
