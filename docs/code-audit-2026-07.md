@@ -42,7 +42,7 @@ auto-escapes and there is no `@html`, `innerHTML`, or `eval` anywhere in `panel/
 | 17 | Docked mode has no hide button | 🔵 Low | Easy |
 | 18 | No token reset in the UI | 🔵 Low | Easy |
 | 19 | No API-layer tests | 🔵 Low | Medium |
-| 20 | No health endpoint, App Insights not wired | 🔵 Low | Medium |
+| 20 | No health endpoint (blocks deploy verification), App Insights not wired | 🟡 Medium | Medium |
 
 ---
 
@@ -87,8 +87,13 @@ sits **before** `UseBearerTokenAuthentication()`. An **unauthenticated** attacke
 the whole allowance and lock out the team with 100 requests/minute. 100 streaming LLM calls
 a minute is also far above the cost budget even from legitimate use.
 
-**Fix:** move `UseRateLimiter()` after auth, partition per token/IP, and set a much lower
-limit on the LLM endpoints than on config/telemetry.
+**Fixed by:** partitioning every limiter per client and adding a 20/min draft policy against
+a 120/min backstop. The limiter deliberately stayed *ahead* of auth — once partitioned, an
+unauthenticated flood only exhausts its own bucket, so capping it there is strictly better.
+
+**Known limitation:** the partition key is the client address, so agents behind one office
+NAT share a bucket. Fine for a demo and a small pilot; revisit alongside OIDC (#4), when a
+per-agent subject claim becomes available.
 
 ## 🟠 High
 
@@ -236,6 +241,13 @@ fake Gorgias client.
 
 The technical reference states telemetry goes to Application Insights; it was never wired
 up (`az webapp log tail` is the current substitute). No `/health` endpoint either.
+
+**Raised in priority by experience.** Verifying a deploy is currently guesswork: every
+endpoint answers 200 both before and after a swap, so there is no way to tell which build
+is live. This produced two false readings while verifying the 2026-07-29 fixes — once a
+burst of 500s from an instance still starting, once a passing test against code that had
+already been replaced. A `/health` endpoint returning the build version would make deploy
+verification deterministic instead of a matter of waiting long enough.
 
 ---
 
