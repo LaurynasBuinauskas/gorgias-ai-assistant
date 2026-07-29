@@ -8,10 +8,12 @@ public static class TelemetryEndpoints
     {
         app.MapPost("/v1/telemetry/anchor", (AnchorTelemetryRequestV1 telemetry, ILogger<Program> logger) =>
         {
-            logger.LogInformation(
-                "Anchor mode {Mode} reported for account {Account}",
-                telemetry.Mode,
-                telemetry.Account);
+            if (!telemetry.TryValidate(out var mode, out var account))
+            {
+                return Results.BadRequest(new { message = "Expected mode 'docked' or 'floating' and a non-empty account." });
+            }
+
+            logger.LogInformation("Anchor mode {Mode} reported for account {Account}", mode, account);
             return Results.Accepted();
         });
 

@@ -20,6 +20,7 @@
     <ProjectReference Include="..\Copilot.Pipeline\Copilot.Pipeline.csproj" />
     <ProjectReference Include="..\Copilot.Knowledge\Copilot.Knowledge.csproj" />
     <ProjectReference Include="..\Copilot.Gorgias\Copilot.Gorgias.csproj" />
+    <ProjectReference Include="..\Copilot.Api\Copilot.Api.csproj" />
   </ItemGroup>
 
 </Project>
