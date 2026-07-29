@@ -13,6 +13,7 @@ builder.Services.AddGorgias();
 builder.Services.AddAi();
 builder.Services.AddDraftingPipeline();
 builder.Services.AddClientAddressForwarding();
+builder.Services.AddApiProblemDetails();
 builder.Services.AddApiRateLimiting();
 builder.Services.AddBearerTokenAuthentication();
 builder.Services.AddPanelCors(builder.Environment, builder.Configuration);
@@ -24,6 +25,7 @@ var app = builder.Build();
 // so a preflight is answered without spending anyone's budget. Rate limiting stays ahead of
 // authentication so unauthenticated floods are capped too — per-client partitioning means a
 // caller can only exhaust its own bucket, never the team's.
+app.UseApiExceptionHandler();
 app.UseForwardedHeaders();
 app.UseRouting();
 app.UseCors(CorsExtensions.PolicyName);
