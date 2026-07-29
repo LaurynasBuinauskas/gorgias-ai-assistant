@@ -1,9 +1,11 @@
 using System.Text.Json;
 using Copilot.Api.Contracts;
+using Copilot.Api.RateLimiting;
 using Copilot.Domain;
 using Copilot.Gorgias;
 using Copilot.Pipeline;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Copilot.Api.Endpoints;
 
@@ -38,7 +40,7 @@ public static class DraftEndpoints
                     Results.Ok(new InsufficientDataResponseV1 { Message = insufficient.Message }),
                 _ => throw new InvalidOperationException($"Unhandled pipeline result: {result.GetType().Name}"),
             };
-        });
+        }).RequireRateLimiting(RateLimitingExtensions.DraftPolicy);
 
         // Server-sent events. POST (not GET) because the panel replays the conversation in
         // the body, and fetch-based SSE lets us send the bearer header EventSource cannot.
@@ -113,7 +115,7 @@ public static class DraftEndpoints
                     new { message = "The assistant could not finish this draft. Try again." },
                     CancellationToken.None);
             }
-        });
+        }).RequireRateLimiting(RateLimitingExtensions.DraftPolicy);
 
         return app;
     }
