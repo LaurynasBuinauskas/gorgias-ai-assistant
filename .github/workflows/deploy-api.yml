@@ -23,7 +23,12 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - run: dotnet publish backend/Copilot.Api/Copilot.Api.csproj --configuration Release --output publish
+      # SourceRevisionId lands in AssemblyInformationalVersion, which /health reports — that
+      # is what makes "is my change live yet?" answerable instead of guesswork.
+      - run: >
+          dotnet publish backend/Copilot.Api/Copilot.Api.csproj
+          --configuration Release --output publish
+          -p:SourceRevisionId=${{ github.sha }}
 
       - uses: azure/webapps-deploy@v3
         with:

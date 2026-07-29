@@ -31,6 +31,7 @@ app.UseRateLimiter();
 app.UseBearerTokenAuthentication();
 
 app.MapGet("/", () => "Copilot API");
+app.MapHealthEndpoints();
 app.MapDraftEndpoints();
 app.MapConfigEndpoints();
 app.MapTelemetryEndpoints();

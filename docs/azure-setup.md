@@ -199,6 +199,11 @@ Actions tab → run each workflow (or push a change to its folder):
 ## 9. Verify the deployment
 
 ```sh
+# 0. Which build is live? Compare the +<sha> suffix with the commit you deployed.
+#    Check this first — every other endpoint answers identically before and after a
+#    swap, so without it you may be testing the previous build.
+curl https://$API_HOST/health
+
 # 1. API is up (public endpoint — the shell reads this without a token)
 curl https://$API_HOST/v1/config
 

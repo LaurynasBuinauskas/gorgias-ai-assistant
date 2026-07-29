@@ -42,7 +42,7 @@ auto-escapes and there is no `@html`, `innerHTML`, or `eval` anywhere in `panel/
 | 17 | Docked mode has no hide button | 🔵 Low | Easy |
 | 18 | No token reset in the UI | 🔵 Low | Easy |
 | 19 | No API-layer tests | 🔵 Low | Medium |
-| 20 | No health endpoint (blocks deploy verification), App Insights not wired | 🟡 Medium | Medium |
+| 20 | ~~No health endpoint~~ ✅ / App Insights not wired | 🔵 Low | Medium |
 
 ---
 
@@ -242,12 +242,16 @@ fake Gorgias client.
 The technical reference states telemetry goes to Application Insights; it was never wired
 up (`az webapp log tail` is the current substitute). No `/health` endpoint either.
 
-**Raised in priority by experience.** Verifying a deploy is currently guesswork: every
-endpoint answers 200 both before and after a swap, so there is no way to tell which build
-is live. This produced two false readings while verifying the 2026-07-29 fixes — once a
-burst of 500s from an instance still starting, once a passing test against code that had
-already been replaced. A `/health` endpoint returning the build version would make deploy
-verification deterministic instead of a matter of waiting long enough.
+**Health endpoint added 2026-07-29.** Verifying a deploy used to be guesswork: every
+endpoint answered 200 both before and after a swap, which produced two false readings while
+verifying that day's fixes — once a burst of 500s from an instance still starting, once a
+passing test against code already replaced. `GET /health` now returns the build version
+(`1.0.0+<commit sha>`, stamped by the deploy workflow), so "is my change live?" is a
+comparison rather than a wait. It is exempt from rate limiting, since a health check that
+fails when the service is merely busy is worse than none.
+
+**Still open:** Application Insights is not wired up; `az webapp log tail` remains the
+substitute.
 
 ---
 
