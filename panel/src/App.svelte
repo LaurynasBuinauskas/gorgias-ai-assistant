@@ -25,9 +25,26 @@ const BASE_ACTIONS: readonly QuickAction[] = [
 
 // localStorage, not sessionStorage: the panel runs in a third-party iframe whose
 // sessionStorage is per-tab, so agents would re-enter the token on every Gorgias tab.
-let token = $state(
-  localStorage.getItem(TOKEN_KEY) ?? (import.meta.env.DEV ? 'local-dev-token' : ''),
-);
+// Both accessors are guarded: a browser set to block third-party storage throws on access,
+// and an exception here would leave the panel mounted-but-blank rather than merely
+// forgetful.
+function readStoredToken(): string {
+  try {
+    return localStorage.getItem(TOKEN_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function storeToken(value: string): void {
+  try {
+    localStorage.setItem(TOKEN_KEY, value);
+  } catch {
+    // Storage is blocked; the token still works for this session, just isn't remembered.
+  }
+}
+
+let token = $state(readStoredToken() || (import.meta.env.DEV ? 'local-dev-token' : ''));
 let panel = $state<PanelState>(initialState);
 let context = $state<PanelContext | null>(null);
 let ticketInfo = $state<TicketInfo | null>(null);
@@ -79,7 +96,7 @@ function cancelActiveRun() {
 }
 
 $effect(() => {
-  localStorage.setItem(TOKEN_KEY, token);
+  storeToken(token);
 });
 
 // Bootstrap: once a token and a ticket are both present, enter the draft lifecycle.

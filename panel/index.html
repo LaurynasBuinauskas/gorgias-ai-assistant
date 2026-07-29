@@ -4,9 +4,81 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gorgias AI Assistant</title>
+    <style>
+      /* Inline so it paints with the HTML, before any stylesheet or script is fetched.
+         Without it the iframe is blank white until the app mounts, which reads as broken. */
+      body {
+        margin: 0;
+      }
+      .boot {
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px;
+        color: #111827;
+        background: #f7f8fa;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .boot-head {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.7rem 0.9rem;
+        background: #fff;
+        border-bottom: 1px solid #e4e7eb;
+      }
+      .boot-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #2b6cb0;
+        animation: boot-pulse 1s ease-in-out infinite;
+      }
+      .boot-brand {
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .boot-body {
+        padding: 1rem 0.9rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+      .boot-line {
+        height: 10px;
+        border-radius: 5px;
+        background: #e7ebf1;
+        animation: boot-pulse 1.4s ease-in-out infinite;
+      }
+      .boot-line.short {
+        width: 60%;
+      }
+      @keyframes boot-pulse {
+        50% {
+          opacity: 0.4;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-dot,
+        .boot-line {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div class="boot">
+        <div class="boot-head">
+          <span class="boot-dot"></span>
+          <span class="boot-brand">AI Assistant</span>
+        </div>
+        <div class="boot-body">
+          <span class="boot-line"></span>
+          <span class="boot-line short"></span>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
