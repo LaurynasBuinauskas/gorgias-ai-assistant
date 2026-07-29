@@ -35,6 +35,9 @@ let instruction = $state('');
 let copiedIndex = $state<number | null>(null);
 let scroller = $state<HTMLElement | null>(null);
 
+// Cancels the in-flight draft. Not reactive — nothing renders from it.
+let activeRun: AbortController | null = null;
+
 const busy = $derived(panel.status === 'generating');
 const turns = $derived(panel.status === 'unauthenticated' ? [] : panel.turns);
 const hasDraft = $derived(turns.some((t) => t.role === 'assistant'));
@@ -69,6 +72,12 @@ function dispatch(event: PanelEvent) {
   panel = reduce(panel, event);
 }
 
+/** Stops the current draft so it can neither bill us nor land in a later conversation. */
+function cancelActiveRun() {
+  activeRun?.abort();
+  activeRun = null;
+}
+
 $effect(() => {
   localStorage.setItem(TOKEN_KEY, token);
 });
@@ -95,7 +104,11 @@ onMount(() => {
     const next: PanelContext = { ticketId: parsed.ticketId, account: parsed.account };
     const changed = next.ticketId !== context?.ticketId;
     context = next;
-    if (changed) ticketInfo = null;
+    if (changed) {
+      // The previous ticket's draft must not keep streaming into this one.
+      cancelActiveRun();
+      ticketInfo = null;
+    }
     if (token.trim().length > 0 && panel.status !== 'unauthenticated') {
       dispatch({ type: 'context', context: next });
     }
@@ -103,7 +116,10 @@ onMount(() => {
 
   window.addEventListener('message', handler);
   window.parent.postMessage(copilotReady, SHELL_ORIGIN);
-  return () => window.removeEventListener('message', handler);
+  return () => {
+    window.removeEventListener('message', handler);
+    cancelActiveRun();
+  };
 });
 
 async function scrollToBottom() {
@@ -116,6 +132,12 @@ async function scrollToBottom() {
 async function run(newInstruction?: string) {
   if (!context || busy) return;
 
+  cancelActiveRun();
+  const controller = new AbortController();
+  activeRun = controller;
+  // Pinned for the whole run: a reply belongs to the ticket it was requested for.
+  const runTicketId = context.ticketId;
+
   const history = panel.status === 'unauthenticated' ? [] : panel.turns;
   dispatch(
     newInstruction ? { type: 'generate', instruction: newInstruction } : { type: 'generate' },
@@ -127,7 +149,11 @@ async function run(newInstruction?: string) {
     ? { turns: history, instruction: newInstruction }
     : { turns: history };
 
-  for await (const event of streamDraft(token.trim(), context.ticketId, payload)) {
+  for await (const event of streamDraft(token.trim(), runTicketId, payload, controller.signal)) {
+    // Belt and braces alongside the abort: never let a superseded run write into whatever
+    // conversation is on screen now.
+    if (controller.signal.aborted || context?.ticketId !== runTicketId) return;
+
     if (event.kind === 'ticket') {
       ticketInfo = event.ticket;
       dispatch({ type: 'writing' });
@@ -142,6 +168,9 @@ async function run(newInstruction?: string) {
       dispatch({ type: 'failed', message: event.message });
     }
   }
+
+  if (controller.signal.aborted) return;
+  activeRun = null;
 
   // A stream that ends without a terminal event still needs to leave `generating`.
   if (panel.status === 'generating') dispatch({ type: 'completed' });

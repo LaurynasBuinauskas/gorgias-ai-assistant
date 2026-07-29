@@ -25,10 +25,15 @@ export type DraftPayload = {
   readonly instruction?: string;
 };
 
+/**
+ * Streams a draft. Pass `signal` to cancel: an aborted run yields nothing further and
+ * releases the connection, so the server stops generating tokens we would still pay for.
+ */
 export async function* streamDraft(
   token: string,
   ticketId: string,
   payload: DraftPayload,
+  signal?: AbortSignal,
 ): AsyncGenerator<StreamEvent> {
   let response: Response;
   try {
@@ -36,9 +41,13 @@ export async function* streamDraft(
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ v: 1, turns: payload.turns, instruction: payload.instruction }),
+      ...(signal ? { signal } : {}),
     });
   } catch {
-    yield { kind: 'error', message: 'Could not reach the assistant. Check your connection.' };
+    // Cancelling is the caller's own doing, never something to report as a failure.
+    if (!signal?.aborted) {
+      yield { kind: 'error', message: 'Could not reach the assistant. Check your connection.' };
+    }
     return;
   }
 
@@ -50,6 +59,10 @@ export async function* streamDraft(
     yield { kind: 'error', message: `Ticket ${ticketId} was not found.` };
     return;
   }
+  if (response.status === 429) {
+    yield { kind: 'error', message: 'Too many drafts in a row — wait a moment and try again.' };
+    return;
+  }
   if (!response.ok || !response.body) {
     yield { kind: 'error', message: `The assistant returned ${response.status}. Try again.` };
     return;
@@ -59,21 +72,30 @@ export async function* streamDraft(
   const decoder = new TextDecoder();
   let buffer = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
+      buffer += decoder.decode(value, { stream: true });
 
-    // SSE frames are separated by a blank line; keep any partial frame in the buffer.
-    let split = buffer.indexOf('\n\n');
-    while (split !== -1) {
-      const frame = buffer.slice(0, split);
-      buffer = buffer.slice(split + 2);
-      const event = parseFrame(frame);
-      if (event) yield event;
-      split = buffer.indexOf('\n\n');
+      // SSE frames are separated by a blank line; keep any partial frame in the buffer.
+      let split = buffer.indexOf('\n\n');
+      while (split !== -1) {
+        const frame = buffer.slice(0, split);
+        buffer = buffer.slice(split + 2);
+        const event = parseFrame(frame);
+        if (event) yield event;
+        split = buffer.indexOf('\n\n');
+      }
     }
+  } catch {
+    if (!signal?.aborted) {
+      yield { kind: 'error', message: 'The connection to the assistant was lost.' };
+    }
+  } finally {
+    // Runs on abort and when the caller stops consuming early, releasing the connection.
+    await reader.cancel().catch(() => undefined);
   }
 }
 
