@@ -133,12 +133,13 @@ Goal: the full agent-facing UI, developed entirely in a normal browser tab.
       postMessages a fake `copilot:context` (`{v:1, ticketId, account}`), with a
       ticket-ID control — the daily dev environment.
 - [x] Svelte 5 app: typed state machine (`unauthenticated → idle → generating →
-      drafted | insufficient_data | error`; `context_switch` → `idle`) as a plain TS
-      module (`src/lib/state.ts`) with exhaustive discriminated unions + `never` check;
-      7 transition tests (vitest, wired into CI).
+      idle | insufficient_data | error`, with a `reading`/`writing` phase while
+      generating) as a plain TS module (`src/lib/state.ts`) with exhaustive
+      discriminated unions + `never` check; 12 transition tests (vitest, in CI).
 - [x] Chat UI: streamed draft (token-by-token via SSE), conversation view, free-form
-      instruction composer, one-tap quick actions (Translate to English / Friendlier /
-      Shorter / More formal), per-message and latest-draft **copy to clipboard**.
+      instruction composer, quick actions (dynamic `Translate to <customer language>` /
+      Friendlier / Shorter / More formal), per-message and latest-draft **copy to
+      clipboard**, ticket header from the `ticket` stage event.
 - [x] The panel owns conversation state (`turns`) and replays it to the stateless
       backend; a ticket switch or refresh starts a fresh conversation, by design.
 - [x] `insufficient_data` rendered as a first-class state with the verbatim backend
@@ -148,10 +149,10 @@ Goal: the full agent-facing UI, developed entirely in a normal browser tab.
       (loopback in dev, configured origin in prod).
 - [x] Manual visual pass at panel dimensions (400 px iframe), verified live in-browser.
 
-Exit criteria (lite): request → draft → copy loop working against the local backend,
-driven from the mock harness, no extension involved — **verified live** (German draft
-for the Time Resistance ticket rendered in the panel). Refine step carries forward with
-refinement turns.
+Exit criteria: request → draft → **refine** → copy loop working against the backend,
+driven from the mock harness, no extension involved — **verified live** (English draft
+streamed, translated to German on request, then revised by a typed instruction).
+Refinement shipped here rather than carrying forward.
 
 ## Stage 5 — Extension shell
 
@@ -204,15 +205,18 @@ Goal: everything running in Azure inside the cost budget; security essentials ve
       `Content-Security-Policy: frame-ancestors 'self' https://*.gorgias.com` + `nosniff`
       via `staticwebapp.config.json` (`'self'` so the bundled harness can still frame the
       panel); API CORS = exactly `Api__AllowedOrigins__0` in production.
-- [ ] **Run the runbook** (needs an Azure subscription — a human step), then verify:
-      CSP header present, CORS restricted, and no secret in the extension or SPA bundle.
+- [x] **Runbook run.** Provisioned and deployed: App Service (B1, Sweden Central),
+      Static Web Apps (East US 2), Key Vault + managed identity. Verified live: CSP
+      header present, drafts 401 without a token, CORS restricted to the panel origin,
+      no secret in either bundle.
 - [ ] Confirm LLM provider DPA / no-training / zero-retention terms (launch gate —
       it's a reading task, not an engineering task, but it blocks launch).
-- [ ] Smoke test the deployed stack end to end with the load-unpacked extension.
+- [x] Smoke tested end to end with the load-unpacked extension against a live Gorgias
+      ticket.
 
 Exit criteria: production URL serves the panel; deployed API drafts from a real ticket;
-the security essentials above verified. **Pipelines and runbook are code-complete; the
-Azure provisioning run is pending.**
+the security essentials above verified. **Met** — the only open item is the LLM provider
+DPA confirmation, which is a reading task, not an engineering one.
 
 ## Stage 7 — Pilot release (MVP done)
 
@@ -230,6 +234,11 @@ Azure provisioning run is pending.**
 
 **MVP complete.** Total ≈ 41–68 h. Fixed infrastructure cost ≈ $1–6/month (LLM tokens
 are the only real variable).
+
+---
+
+> **Current status and everything still open** live in `project-status.md`; open defects
+> live in `code-audit-2026-07.md`. This document records the staged build itself.
 
 ---
 
