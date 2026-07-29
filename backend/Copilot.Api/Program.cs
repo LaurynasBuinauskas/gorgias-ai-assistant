@@ -20,11 +20,6 @@ builder.Services.AddPanelCors(builder.Environment, builder.Configuration);
 
 var app = builder.Build();
 
-// Order matters. The real client address has to be resolved before rate limiting can
-// partition on it; routing before endpoint-specific policies can be found; CORS before both
-// so a preflight is answered without spending anyone's budget. Rate limiting stays ahead of
-// authentication so unauthenticated floods are capped too — per-client partitioning means a
-// caller can only exhaust its own bucket, never the team's.
 app.UseApiExceptionHandler();
 app.UseForwardedHeaders();
 app.UseRouting();

@@ -5,7 +5,6 @@ using Copilot.Domain;
 using Copilot.Gorgias;
 using Copilot.Pipeline;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.AspNetCore.RateLimiting;
 
 namespace Copilot.Api.Endpoints;
 
@@ -42,8 +41,6 @@ public static class DraftEndpoints
             };
         }).RequireRateLimiting(RateLimitingExtensions.DraftPolicy);
 
-        // Server-sent events. POST (not GET) because the panel replays the conversation in
-        // the body, and fetch-based SSE lets us send the bearer header EventSource cannot.
         app.MapPost("/v1/tickets/{ticketId:long}/drafts/stream", async (
             long ticketId,
             DraftRequestV1? request,
@@ -65,8 +62,6 @@ public static class DraftEndpoints
             var draftId = Guid.NewGuid().ToString("N");
             try
             {
-                // Emitted as soon as the (potentially slow) Gorgias fetch completes, so the
-                // panel can show a ticket header while the model warms up.
                 await WriteEventAsync(
                     http.Response,
                     "ticket",
@@ -144,8 +139,7 @@ public static class DraftEndpoints
     private static void StartEventStream(HttpContext http)
     {
         http.Response.Headers.ContentType = "text/event-stream";
-        http.Response.Headers.CacheControl = "no-cache";
-        // Stops reverse proxies (App Service front end) from buffering the stream.
+        http.Response.Headers.CacheControl = "no-cache";        
         http.Response.Headers["X-Accel-Buffering"] = "no";
         http.Features.Get<IHttpResponseBodyFeature>()?.DisableBuffering();
     }

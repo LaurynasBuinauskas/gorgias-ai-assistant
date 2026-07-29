@@ -12,7 +12,10 @@ never sends replies autonomously.
 |---|---|
 | [docs/gorgias-copilot-technical-reference.md](docs/gorgias-copilot-technical-reference.md) | Architecture, stack, constraints, phases |
 | [docs/gorgias-copilot-extension-dev-guide.md](docs/gorgias-copilot-extension-dev-guide.md) | Tooling, dev workflow, build & release |
+| [docs/project-status.md](docs/project-status.md) | **Where the project stands and what's left**, tagged by phase |
+| [docs/next-tasks.md](docs/next-tasks.md) | The next batch of work, sized and ordered |
 | [docs/implementation-plan.md](docs/implementation-plan.md) | Stage-by-stage plan with exit criteria |
+| [docs/code-audit-2026-07.md](docs/code-audit-2026-07.md) | Open security/quality findings with effort ratings |
 | [docs/azure-setup.md](docs/azure-setup.md) | One-time cloud provisioning runbook (CLI + portal) |
 | [docs/user-setup-guide.md](docs/user-setup-guide.md) | Demo setup: install the widget (for the dev running the demo) |
 | [docs/user-usage-guide.md](docs/user-usage-guide.md) | Usage + a suggested demo flow |
