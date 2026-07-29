@@ -62,23 +62,23 @@ public static class DraftEndpoints
 
             StartEventStream(http);
 
-            // Emitted as soon as the (potentially slow) Gorgias fetch completes, so the
-            // panel can show a ticket header while the model warms up.
-            await WriteEventAsync(
-                http.Response,
-                "ticket",
-                new
-                {
-                    customerName = ticket.Customer?.Name,
-                    subject = ticket.Subject,
-                    language = ticket.Language,
-                    messageCount = ticket.Messages.Count(m => !m.IsInternalNote),
-                },
-                cancellationToken);
-
             var draftId = Guid.NewGuid().ToString("N");
             try
             {
+                // Emitted as soon as the (potentially slow) Gorgias fetch completes, so the
+                // panel can show a ticket header while the model warms up.
+                await WriteEventAsync(
+                    http.Response,
+                    "ticket",
+                    new
+                    {
+                        customerName = ticket.Customer?.Name,
+                        subject = ticket.Subject,
+                        language = ticket.Language,
+                        messageCount = ticket.Messages.Count(m => !m.IsInternalNote),
+                    },
+                    cancellationToken);
+
                 await foreach (var chunk in pipeline.StreamDraftAsync(
                     ticket,
                     request?.ToDomain() ?? DraftRequest.Initial,
@@ -106,18 +106,39 @@ public static class DraftEndpoints
             {
                 // The agent navigated away or switched tickets; nothing to report.
             }
+            catch (Exception ex) when (http.RequestAborted.IsCancellationRequested)
+            {
+                // A write that failed because the client vanished is a disconnect, not a fault.
+                logger.LogDebug(ex, "Draft stream for ticket {TicketId} ended early: client gone", ticketId);
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Streaming draft failed for ticket {TicketId}", ticketId);
-                await WriteEventAsync(
-                    http.Response,
-                    "error",
-                    new { message = "The assistant could not finish this draft. Try again." },
-                    CancellationToken.None);
+                await TryReportFailureAsync(http, logger, ticketId);
             }
         }).RequireRateLimiting(RateLimitingExtensions.DraftPolicy);
 
         return app;
+    }
+
+    /// <summary>
+    /// Tells the panel the draft failed. Best-effort: the headers are already sent, so this
+    /// is the only way to report it, and the client may disconnect while we try.
+    /// </summary>
+    private static async Task TryReportFailureAsync(HttpContext http, ILogger logger, long ticketId)
+    {
+        try
+        {
+            await WriteEventAsync(
+                http.Response,
+                "error",
+                new { message = "The assistant could not finish this draft. Try again." },
+                CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Could not deliver the error event for ticket {TicketId}", ticketId);
+        }
     }
 
     private static void StartEventStream(HttpContext http)
