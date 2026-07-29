@@ -21,6 +21,11 @@ public sealed class AnchorTelemetryRequestTests
     [InlineData("hidden")]
     [InlineData("")]
     [InlineData("docked; DROP TABLE")]
+    // Enum.TryParse also accepts the underlying numeric values — including ones with no
+    // matching member — so those have to be rejected explicitly.
+    [InlineData("0")]
+    [InlineData("1")]
+    [InlineData("5")]
     public void RejectsAnUnknownMode(string mode) =>
         Assert.False(Request(mode: mode).TryValidate(out _, out _));
 

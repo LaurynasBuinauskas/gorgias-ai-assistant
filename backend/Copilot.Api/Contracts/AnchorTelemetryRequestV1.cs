@@ -26,7 +26,19 @@ public sealed record AnchorTelemetryRequestV1
     public bool TryValidate(out AnchorMode mode, out string account)
     {
         account = Sanitize(Account);
-        return Enum.TryParse(Mode, ignoreCase: true, out mode) && account.Length > 0;
+
+        // Matched by name only. Enum.TryParse would also accept the underlying numbers —
+        // "0" and "1" silently becoming modes, "5" a member that does not exist — none of
+        // which were ever part of this contract.
+        AnchorMode? recognised = Mode.Trim().ToLowerInvariant() switch
+        {
+            "docked" => AnchorMode.Docked,
+            "floating" => AnchorMode.Floating,
+            _ => null,
+        };
+
+        mode = recognised ?? default;
+        return recognised is not null && account.Length > 0;
     }
 
     /// <summary>

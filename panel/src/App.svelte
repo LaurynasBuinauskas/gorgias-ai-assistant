@@ -170,7 +170,8 @@ async function run(newInstruction?: string) {
   }
 
   if (controller.signal.aborted) return;
-  activeRun = null;
+  // Only clear the slot if it is still ours; a newer run may already own it.
+  if (activeRun === controller) activeRun = null;
 
   // A stream that ends without a terminal event still needs to leave `generating`.
   if (panel.status === 'generating') dispatch({ type: 'completed' });
