@@ -35,3 +35,31 @@ jobs:
           app-name: ${{ vars.AZURE_API_APP_NAME }}
           publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
           package: publish
+
+      # A green deploy step only means the package was delivered. The previous build can
+      # keep serving, or the running process can swap files under itself and start throwing
+      # BadImageFormatException on routes it has not JITted yet — which happened, silently,
+      # until /health existed. Gate on this commit actually serving.
+      - name: Verify the deployed build is serving
+        env:
+          BASE: https://${{ vars.AZURE_API_APP_NAME }}.azurewebsites.net
+        run: |
+          for attempt in $(seq 1 30); do
+            body=$(curl -fsS --max-time 20 "$BASE/health" 2>/dev/null || true)
+            case "$body" in
+              *"${{ github.sha }}"*)
+                # /health deliberately bypasses rate limiting, so it stays up in the very
+                # failure mode we are guarding against. Check a normal route as well.
+                code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$BASE/v1/config")
+                if [ "$code" = "200" ]; then
+                  echo "Live and serving: $body"
+                  exit 0
+                fi
+                echo "attempt $attempt: correct build, but /v1/config returned $code"
+                ;;
+              *) echo "attempt $attempt: previous build still serving" ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Deployed build never served this commit. Restart the app: az webapp restart -g <rg> -n ${{ vars.AZURE_API_APP_NAME }}"
+          exit 1

@@ -43,6 +43,7 @@ auto-escapes and there is no `@html`, `innerHTML`, or `eval` anywhere in `panel/
 | 18 | No token reset in the UI | 🔵 Low | Easy |
 | 19 | No API-layer tests | 🔵 Low | Medium |
 | 20 | ~~No health endpoint~~ ✅ / App Insights not wired | 🔵 Low | Medium |
+| 21 | Zip deploy breaks the running app until it recycles | 🟠 High | Medium |
 
 ---
 
@@ -189,6 +190,38 @@ A typo yields a healthy-looking API that rejects the panel with an opaque CORS e
 
 No `UseExceptionHandler`/ProblemDetails. `GorgiasApiException` surfaces as a bare 500 with
 no correlation ID, and the error contract differs between the two draft endpoints.
+
+## 🟠 High (found 2026-07-29)
+
+### 21. Zip deploy breaks the running app until it recycles — Effort: **Medium**
+
+**Where:** `.github/workflows/deploy-api.yml`, Azure App Service (Linux)
+
+The deploy replaces DLLs under the *running* process. Any assembly the process has not
+loaded yet is then read from a half-swapped file, and the request throws:
+
+```
+System.BadImageFormatException: An attempt was made to load a program with an incorrect format.
+   at Microsoft.AspNetCore.RateLimiting.RateLimitingMiddleware.InvokeInternal(...)
+```
+
+Confirmed at 12:58 and 13:57 — immediately after two separate deploys. Every `/v1/*` route
+returned 500 while `/health` kept answering 200, because `DisableRateLimiting` short-circuits
+before the middleware path that triggers the load. `az webapp restart` fixes it instantly,
+which is what proves it is a stale process rather than a bad build.
+
+**This had been happening after every deploy and nobody could see it** — the workflow went
+green, and the health endpoint that would have revealed it did not exist until the same day.
+
+**Mitigations applied:** `WEBSITE_RUN_FROM_PACKAGE=1` so the payload is mounted rather than
+extracted over a live directory, plus a post-deploy gate that fails the workflow unless
+`/health` reports the deployed commit *and* a rate-limited route returns 200.
+
+**Still open:** the gate detects the problem but cannot repair it — restarting is an ARM
+operation, and the workflow only holds a publish profile (Kudu returns 403 for restart).
+Wiring `azure/login` with a service principal would let the workflow restart on its own.
+Verify at the next deploy of a new commit whether run-from-package removed the window
+entirely; if it did, the restart step is unnecessary.
 
 ## 🔵 Low / code quality
 
