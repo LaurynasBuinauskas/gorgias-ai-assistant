@@ -14,7 +14,14 @@ Last reviewed: 2026-08-01.
 
 ## 1. Blocking
 
-### B-1 · Which storefront's terms apply when signals disagree? — `R-6` *(narrowed 2026-08-01)*
+### B-1 · ~~Which storefront's terms apply when signals disagree?~~ **ANSWERED 2026-08-01**
+
+**Client decision: the storefront the customer ordered from wins.** A customer who bought
+from the German store gets German terms, whichever inbox they wrote to. This is what
+`StorefrontMarketResolver` already implements — order storefront outranks support inbox —
+so no change was needed. Retained below for the reasoning.
+
+### Original question — Which storefront's terms apply when signals disagree? — `R-6`
 
 **Ask the client:**
 
@@ -90,7 +97,29 @@ only instantaneity.
 Whichever is chosen, `R-10` and the `L-5` runbook must describe *that* mechanism, not the
 alias swap the plan currently assumes.
 
-### D-5 · Is English-only actually required? — `L-1`, `L-2`, `E-4`, `L-6`
+### D-5 · ~~Is English-only actually required?~~ **ANSWERED 2026-08-01**
+
+**Client decision: yes — drafts are always English.** The reason is not about customers,
+it is about reviewers: the support agents primarily read English, so a draft in German is
+one they cannot check before sending. English-first is what makes human-in-the-loop real
+rather than ceremonial.
+
+That resolves the tension with the 60 %-non-English template corpus below. Those templates
+are what agents *send*, after review and translation. They are not what the assistant
+should *draft*.
+
+**Consequences:**
+
+- The prompt already writes English by default for a non-English ticket, so no behaviour
+  change is required for the default path.
+- The translate quick action **stays** (client decision, 2026-08-01), so an explicit agent
+  request is still honoured. "Always English" governs what the assistant produces
+  unprompted, not what an agent may deliberately ask for.
+- `E-4` (language class) is unblocked and asserts: a non-English ticket yields an English
+  draft.
+- `L-6` may state "drafts arrive in English so you can review them" as agreed.
+
+### Original question — Is English-only actually required? — `L-1`, `L-2`, `E-4`, `L-6`
 
 **Reopened 2026-08-01.** The plan recorded "the client wants English always" and built three
 tasks on it. That is now on hold: `L-1` is deferred, the translate quick-action stays, and

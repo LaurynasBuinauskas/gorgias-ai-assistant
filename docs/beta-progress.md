@@ -134,7 +134,7 @@ human review.
 | Task | Title | Depends on | Status | Commit | Note |
 |---|---|---|---|---|---|
 | `R-9` | Input caps and output token limit | — | done | `092be5f` | Verified against production: 8/8 checks. Caps return 400 before the Gorgias lookup or any model call; `MaxOutputTokens` set on both call paths; transcript trimmed to newest messages; retrieval allowance reserved so `R-7` cannot silently blow the ceiling. Bodies over 128 KB surface as 502 (App Service reports Kestrel's abort, not 413) |
-| `L-1` | Make English-only unconditional | — | **deferred** | | Client decision reopened 2026-08-01. Translation stays supported for now; see `open-questions.md` D-5 |
+| `L-1` | Make English-only unconditional | — | done | | **Client answered 2026-08-01: always English, because agents review in English.** Current prompt already drafts English by default for non-English tickets, so no change was needed. Translate action stays for explicit agent requests |
 | `L-3` | Prove the kill switch works end to end | — | todo | | Never exercised |
 | `P-2` | Knowledge layout and front-matter schema | — | done | | `_meta/markets.json` (14) + `topics.json` (10) generated from the corpus; all 99 policy files validate — market/topic resolve and match directory position. Generator asserts 1 storefront per market, independently confirming the `R-6` mapping |
 | `R-2` | Provision Azure AI Search and define the index | — | done | | Basic, Sweden Central. `knowledge-v1` behind alias `knowledge`; smoke proves filtered hybrid retrieval and market exclusion. **Aliases need a preview api-version — see `open-questions.md` D-4** |
@@ -159,7 +159,7 @@ human review.
 | `E-1` | Eval harness skeleton | R-7 | done | | `backend/tools/Copilot.Evals`. Runs YAML cases through the **real** pipeline and index; only the ticket and the market are substituted. Verified: 2/2 pass, and deliberately breaking a blocking case gives exit 1 with the failed assertion and the draft in the report |
 | `E-2` | Assertion library | E-1 | todo | | |
 | `E-3` | Class A: internal leakage cases | E-2, P-4 | todo | | Blocking class |
-| `E-4` | Class B: language cases | E-2 | todo | | **Needs rewriting before it is built.** It asserts every draft returns English even when an agent asks otherwise — no longer the intended behaviour now `L-1` is deferred |
+| `E-4` | Class B: language cases | E-2 | todo | | Unblocked by the D-5 answer. Asserts a non-English ticket yields an English draft. Drop the original sub-case that asserted an explicit agent request is refused — translation on request is supported |
 | `E-5` | Class C: market divergence cases | E-2, R-6, R-3 | todo | | Blocking class |
 | `E-6` | Class D and E: refusal and fabrication | E-2, R-7 | todo | | |
 | `E-7` | Class F: injection cases | E-2, R-8 | todo | | Blocking class |
@@ -196,4 +196,6 @@ Append here whenever a task resolves a question or changes a planning document.
 | 2026-08-01 | "Closed" is not "resolved": only 58% of closed tickets contain a customer message answered by an agent. Chat is 100% usable, email 44% — carrier notifications and marketing dominate the waste. Usable exemplars ~11,700, not 20,042 | investigation |
 | 2026-08-01 | Ticket extraction is far cheaper than planned: 20,042 closed tickets in 12 months, ~3.1 hours to backfill, per-ticket fetch 0.20 s rather than the ~14 s the plan assumed. The naive walk is the recommended strategy; search, views and jobs are unnecessary | investigation |
 | 2026-08-01 | Redaction fixtures are synthetic by rule — invented identities modelled on real shapes. The eval suite lives in the repo and must not become a third copy of customer data | investigation |
+| 2026-08-01 | **Client: the storefront ordered from wins when market signals disagree.** German store, German terms, whichever inbox was written to. Matches what `R-6` already implements | client |
+| 2026-08-01 | **Client: drafts are always English** — because the support agents review in English, not because customers want it. A draft an agent cannot read is a draft they cannot check, which makes human-in-the-loop ceremonial | client |
 | 2026-08-01 | **Priority set explicitly: answer quality first.** Policy grounding, retrieval over completed tickets, and better answers outrank launch polish. The plan's task order is re-sequenced around that | user |

@@ -11,6 +11,9 @@ using Copilot.Pipeline;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddOptions<ShellConfigOptions>()
+    .BindConfiguration(ShellConfigOptions.SectionName);
+
 builder.Services.AddOptions<DraftLimitsOptions>()
     .BindConfiguration(DraftLimitsOptions.SectionName)
     .Validate(o => o.MaxTurns > 0, "DraftLimits:MaxTurns must be greater than zero.")
