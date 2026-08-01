@@ -1,0 +1,13 @@
+# The policy rollup PDF carries an uncompressed text layer, so Git's heuristic classifies it
+# as text and would apply CRLF conversion — which corrupts the byte stream, breaks
+# tools/policy-pdf-to-markdown/convert.py, and destroys the provenance record the corpus was
+# reconstructed from. Pin every binary format explicitly.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.zip binary
+
+# Knowledge content is authored on multiple platforms and read by the ingestion pipeline;
+# keep it byte-stable in the repository.
+knowledge/**/*.md text eol=lf
