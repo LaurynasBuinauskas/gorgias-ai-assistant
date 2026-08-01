@@ -157,7 +157,7 @@ human review.
 | `R-10` | Reindex, alias swap and rollback | R-3, R-4 | todo | | |
 | `R-11` | Retrieval observability | R-7 | done | | Every line keyed by draft id: market + deciding signal, chunk ids and scores per corpus, gate decision, prompt size, usage, citations. Chunk ids decoded to readable natural keys. **Fixed: the streaming path minted its own draft id**, so feedback could never have been traced to a retrieval. Tests assert no customer or policy text reaches any log line |
 | `E-1` | Eval harness skeleton | R-7 | done | | `backend/tools/Copilot.Evals`. Runs YAML cases through the **real** pipeline and index; only the ticket and the market are substituted. Verified: 2/2 pass, and deliberately breaking a blocking case gives exit 1 with the failed assertion and the draft in the report |
-| `E-2` | Assertion library | E-1 | todo | | |
+| `E-2` | Assertion library | E-1 | done | | 15 unit tests. `must_cite_market` fails on a foreign-market citation **and on an uncited draft**; language detection covers EN/DE/FR/ES; `no_model_call` proves a refusal preceded the model |
 | `E-3` | Class A: internal leakage cases | E-2, P-4 | todo | | Blocking class |
 | `E-4` | Class B: language cases | E-2 | todo | | Unblocked by the D-5 answer. Asserts a non-English ticket yields an English draft. Drop the original sub-case that asserted an explicit agent request is refused — translation on request is supported |
 | `E-5` | Class C: market divergence cases | E-2, R-6, R-3 | todo | | Blocking class |
