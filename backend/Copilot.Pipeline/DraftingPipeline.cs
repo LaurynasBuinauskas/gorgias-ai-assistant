@@ -38,18 +38,21 @@ public sealed class DraftingPipeline(
             return new PipelineResult.InsufficientKnowledge(NoCustomerMessage);
         }
 
+        var draftId = NewDraftId();
         var context = await retriever.RetrieveAsync(ticket, cancellationToken);
-        if (!IsCovered(ticket, context))
+        RetrievalLog.Retrieved(logger, draftId, ticket, context);
+
+        if (!IsCovered(draftId, ticket, context))
         {
             return new PipelineResult.InsufficientKnowledge(NotCovered);
         }
 
         var response = await chatClient.GetResponseAsync(
-            BuildPrompt(ticket, request, context, out var citable),
+            BuildPrompt(draftId, ticket, request, context, out var citable),
             ChatOptions,
             cancellationToken);
 
-        LogUsage(ticket, response.Usage);
+        RetrievalLog.Usage(logger, draftId, response.Usage?.InputTokenCount, response.Usage?.OutputTokenCount);
 
         var splitter = SourceSplitterExtensions.SplitAll(response.Text);
         var body = splitter.Body;
@@ -59,8 +62,8 @@ public sealed class DraftingPipeline(
         }
 
         var citations = splitter.ResolveCitations(citable);
-        LogCitations(ticket, citations, context);
-        return new PipelineResult.Success(CreateDraft(ticket, body, citations));
+        RetrievalLog.Citations(logger, draftId, citations);
+        return new PipelineResult.Success(CreateDraft(draftId, ticket, body, citations));
     }
 
     public async IAsyncEnumerable<DraftChunk> StreamDraftAsync(
@@ -74,15 +77,20 @@ public sealed class DraftingPipeline(
             yield break;
         }
 
+        var draftId = NewDraftId();
+        yield return new DraftChunk.Started(draftId);
+
         var context = await retriever.RetrieveAsync(ticket, cancellationToken);
-        if (!IsCovered(ticket, context))
+        RetrievalLog.Retrieved(logger, draftId, ticket, context);
+
+        if (!IsCovered(draftId, ticket, context))
         {
             yield return new DraftChunk.Insufficient(NotCovered);
             yield break;
         }
 
         var updates = chatClient.GetStreamingResponseAsync(
-            BuildPrompt(ticket, request, context, out var citable),
+            BuildPrompt(draftId, ticket, request, context, out var citable),
             ChatOptions,
             cancellationToken);
 
@@ -103,7 +111,7 @@ public sealed class DraftingPipeline(
         }
 
         var citations = splitter.ResolveCitations(citable);
-        LogCitations(ticket, citations, context);
+        RetrievalLog.Citations(logger, draftId, citations);
         yield return new DraftChunk.Sources(citations);
     }
 
@@ -117,7 +125,7 @@ public sealed class DraftingPipeline(
     /// When retrieval is bypassed (rollback lever 2) the gate does not apply — that mode is a
     /// deliberate revert to today's ungrounded behaviour, not an outage.
     /// </summary>
-    private bool IsCovered(TicketContext ticket, RetrievedContext context)
+    private bool IsCovered(string draftId, TicketContext ticket, RetrievedContext context)
     {
         if (context.Bypassed)
         {
@@ -125,49 +133,11 @@ public sealed class DraftingPipeline(
         }
 
         var covered = context.BestPolicyScore >= _retrieval.MinimumPolicyScore;
-
-        // Logged on both paths, not just refusals: a threshold nobody can see the inputs to
-        // cannot be tuned, and "why did it answer that?" is as important as "why did it decline?"
-        logger.LogInformation(
-            "Gate {Decision} for ticket {TicketId}: best policy score {Score:F3} vs threshold {Threshold:F3}, "
-            + "market {Market} ({Signal}), chunks policy={Policy} template={Template} internal={Internal}, "
-            + "top source {TopSource}",
-            covered ? "passed" : "declined",
-            ticket.Id,
-            context.BestPolicyScore,
-            _retrieval.MinimumPolicyScore,
-            context.Market.Market,
-            context.Market.Signal,
-            context.Policy.Count,
-            context.Templates.Count,
-            context.Internal.Count,
-            // Source path, never chunk text: logs must stay free of customer and policy content.
-            context.Policy.Count == 0 ? "none" : context.Policy[0].SourcePath);
-
+        RetrievalLog.Gate(logger, draftId, ticket, context, _retrieval.MinimumPolicyScore, covered);
         return covered;
     }
 
-    /// <summary>
-    /// Source paths only, never chunk text or draft body — a log line must not become a third
-    /// copy of policy or customer content.
-    /// </summary>
-    private void LogCitations(
-        TicketContext ticket,
-        IReadOnlyList<DraftCitation> citations,
-        RetrievedContext context)
-    {
-        if (context.Bypassed)
-        {
-            return;
-        }
-
-        logger.LogInformation(
-            "Draft for ticket {TicketId} cited {Count} source(s) in market {Market}: {Sources}",
-            ticket.Id,
-            citations.Count,
-            context.Market.Market,
-            citations.Count == 0 ? "none" : string.Join(", ", citations.Select(c => c.SourcePath)));
-    }
+    private static string NewDraftId() => Guid.NewGuid().ToString("N");
 
     /// <summary>
     /// Assembles the prompt and checks it against the ceiling. Exceeding it means an upstream
@@ -175,6 +145,7 @@ public sealed class DraftingPipeline(
     /// would hide the defect and change the answer at the same time.
     /// </summary>
     private IReadOnlyList<ChatMessage> BuildPrompt(
+        string draftId,
         TicketContext ticket,
         DraftRequest request,
         RetrievedContext context,
@@ -183,6 +154,9 @@ public sealed class DraftingPipeline(
         var messages = DraftPrompt.Build(
             ticket, request, context, _options.MaxTranscriptCharacters, out citable);
         var characters = messages.Sum(m => m.Text?.Length ?? 0);
+
+        // Roughly four characters per token; enough to spot a prompt growing without bound.
+        RetrievalLog.Prompt(logger, draftId, characters, characters / 4);
 
         if (characters > _options.MaxPromptCharacters)
         {
@@ -200,21 +174,15 @@ public sealed class DraftingPipeline(
         ticket.Messages.Any(m => m is { FromAgent: false, IsInternalNote: false });
 
     private static Draft CreateDraft(
+        string draftId,
         TicketContext ticket,
         string body,
         IReadOnlyList<DraftCitation> citations) => new()
     {
-        DraftId = Guid.NewGuid().ToString("N"),
+        DraftId = draftId,
         TicketId = ticket.Id,
         Body = body,
         Language = ticket.Language,
         Citations = citations,
     };
-
-    private void LogUsage(TicketContext ticket, UsageDetails? usage) =>
-        logger.LogInformation(
-            "Draft generated for ticket {TicketId}: {InputTokens} in / {OutputTokens} out",
-            ticket.Id,
-            usage?.InputTokenCount,
-            usage?.OutputTokenCount);
 }

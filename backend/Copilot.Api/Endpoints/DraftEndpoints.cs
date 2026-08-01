@@ -72,7 +72,9 @@ public static class DraftEndpoints
 
             StartEventStream(http);
 
-            var draftId = Guid.NewGuid().ToString("N");
+            // Assigned by the pipeline, which keys every retrieval log line to it. Minting one
+            // here instead would mean feedback quoting a draft id matched nothing in the logs.
+            var draftId = "";
             try
             {
                 await WriteEventAsync(
@@ -96,6 +98,10 @@ public static class DraftEndpoints
                 {
                     switch (chunk)
                     {
+                        case DraftChunk.Started started:
+                            draftId = started.DraftId;
+                            break;
+
                         case DraftChunk.Delta delta:
                             await WriteEventAsync(http.Response, "delta", new { text = delta.Text }, cancellationToken);
                             break;

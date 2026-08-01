@@ -140,7 +140,11 @@ public sealed class RelevanceGateTests
             chunks.Add(chunk);
         }
 
-        Assert.IsType<DraftChunk.Insufficient>(Assert.Single(chunks));
+        // The stream opens with Started so the draft id is known before anything else; the
+        // refusal follows it and no model call happens.
+        Assert.Collection(chunks,
+            chunk => Assert.IsType<DraftChunk.Started>(chunk),
+            chunk => Assert.IsType<DraftChunk.Insufficient>(chunk));
         Assert.Equal(0, chatClient.CallCount);
     }
 

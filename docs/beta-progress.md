@@ -155,7 +155,7 @@ human review.
 | `R-7` | Retrieval step and relevance gate | R-5, R-6a | done | | Retrieval runs ahead of the model; below threshold the pipeline declines with **zero chat calls**. Threshold calibrated against the live index (covered 2.71-2.89, uncovered 1.53-1.79) and set to 2.2 in config. Internal guidance kept in its own do-not-quote block. Rollback lever 2 (`Retrieval:Enabled=false`) bypasses retrieval and the gate |
 | `R-8` | Grounded prompt with citations | R-7 | done | | Fenced labelled blocks; ticket marked untrusted; internal fenced do-not-quote **and excluded from citable labels**. Citations split off the reply body so the agent copies clean text. Verified on a real returns ticket: cited `GLOBAL/shipping-and-returns.md`. **Relevance-gate threshold lowered to a floor — see `open-questions.md` D-6** |
 | `R-10` | Reindex, alias swap and rollback | R-3, R-4 | todo | | |
-| `R-11` | Retrieval observability | R-7 | todo | | |
+| `R-11` | Retrieval observability | R-7 | done | | Every line keyed by draft id: market + deciding signal, chunk ids and scores per corpus, gate decision, prompt size, usage, citations. Chunk ids decoded to readable natural keys. **Fixed: the streaming path minted its own draft id**, so feedback could never have been traced to a retrieval. Tests assert no customer or policy text reaches any log line |
 | `E-1` | Eval harness skeleton | R-7 | todo | | `tools/Copilot.Evals` |
 | `E-2` | Assertion library | E-1 | todo | | |
 | `E-3` | Class A: internal leakage cases | E-2, P-4 | todo | | Blocking class |
