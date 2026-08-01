@@ -102,11 +102,35 @@ the assistant behaves as it does today — English by default, another language 
 > request another language? The panel currently offers a one-tap translate action and we have
 > left it in place.
 
-**Why it needs a real answer rather than drift.** Three things hang off it. `E-4` is a
+**New evidence, found while converting the templates (`P-3`, 2026-08-01).** The approved
+template corpus is **60 % non-English**:
+
+| Language | Templates | Language | Templates |
+|---|---|---|---|
+| English / unmarked | 64 | Italian | 14 |
+| German | 14 | Dutch | 14 |
+| Spanish | 14 | Polish | 14 |
+| French | 14 | Swedish | 14 |
+
+96 of the 162 carry a `language` tag. The support team **maintains approved replies in seven
+languages** and keeps them current enough to sit in the same curated document as the English
+ones. That is not the artefact of a team that answers only in English.
+
+This cuts against the premise the plan recorded. It does not settle the question — the client
+may be deliberately changing practice, and drafting in English for an agent to translate is a
+coherent workflow — but "the client wants English always" should be re-confirmed rather than
+assumed, because the evidence in their own content points the other way.
+
+It also has a concrete cost: under English-only, **98 of 162 approved templates become
+unusable** as customer-facing retrieval targets, and template grounding (`E-7`, class G) loses
+most of its corpus.
+
+**Why it needs a real answer rather than drift.** Four things hang off it. `E-4` is a
 release-blocking eval class asserting every draft is English — as written it now tests
 behaviour we are not building. `L-6` promises the client "answers are English only" as part
-of the beta terms. And leaving a translate button that a future `L-1` would contradict is the
-exact confusion the original plan wanted to avoid.
+of the beta terms. Template retrieval quality depends on it, per the table above. And leaving
+a translate button that a future `L-1` would contradict is the exact confusion the original
+plan wanted to avoid.
 
 Nothing is blocked while this sits open, but it should not reach go-live undecided.
 
