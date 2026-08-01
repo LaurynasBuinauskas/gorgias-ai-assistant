@@ -3,6 +3,7 @@ using Copilot.Domain;
 using Copilot.Pipeline;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Copilot.Tests;
 
@@ -130,8 +131,8 @@ public sealed class DraftingPipelineTests
         Assert.Null(chatClient.LastMessages);
     }
 
-    private static DraftingPipeline CreatePipeline(IChatClient chatClient) =>
-        new(chatClient, NullLogger<DraftingPipeline>.Instance);
+    private static DraftingPipeline CreatePipeline(IChatClient chatClient, DraftingOptions? options = null) =>
+        new(chatClient, Options.Create(options ?? new DraftingOptions()), NullLogger<DraftingPipeline>.Instance);
 
     private static TicketContext Ticket(params TicketMessage[] messages) => new()
     {

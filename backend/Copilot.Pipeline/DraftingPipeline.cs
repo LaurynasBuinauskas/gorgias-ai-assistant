@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Copilot.Domain;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Copilot.Pipeline;
 
@@ -10,9 +11,14 @@ namespace Copilot.Pipeline;
 /// Knowledge retrieval and the relevance gate slot in ahead of the LLM call once a
 /// knowledge base exists.
 /// </summary>
-public sealed class DraftingPipeline(IChatClient chatClient, ILogger<DraftingPipeline> logger) : IDraftingPipeline
+public sealed class DraftingPipeline(
+    IChatClient chatClient,
+    IOptions<DraftingOptions> options,
+    ILogger<DraftingPipeline> logger) : IDraftingPipeline
 {
     private const string NoCustomerMessage = "This ticket has no customer message to reply to.";
+
+    private readonly DraftingOptions _options = options.Value;
 
     public async Task<PipelineResult> GenerateDraftAsync(
         TicketContext ticket,
@@ -25,8 +31,9 @@ public sealed class DraftingPipeline(IChatClient chatClient, ILogger<DraftingPip
         }
 
         var response = await chatClient.GetResponseAsync(
-            DraftPrompt.Build(ticket, request),
-            cancellationToken: cancellationToken);
+            BuildPrompt(ticket, request),
+            ChatOptions,
+            cancellationToken);
 
         LogUsage(ticket, response.Usage);
 
@@ -48,8 +55,9 @@ public sealed class DraftingPipeline(IChatClient chatClient, ILogger<DraftingPip
         }
 
         var updates = chatClient.GetStreamingResponseAsync(
-            DraftPrompt.Build(ticket, request),
-            cancellationToken: cancellationToken);
+            BuildPrompt(ticket, request),
+            ChatOptions,
+            cancellationToken);
 
         await foreach (var update in updates.WithCancellation(cancellationToken))
         {
@@ -60,6 +68,30 @@ public sealed class DraftingPipeline(IChatClient chatClient, ILogger<DraftingPip
         }
 
         logger.LogInformation("Streamed draft for ticket {TicketId}", ticket.Id);
+    }
+
+    private ChatOptions ChatOptions => new() { MaxOutputTokens = _options.MaxOutputTokens };
+
+    /// <summary>
+    /// Assembles the prompt and checks it against the ceiling. Exceeding it means an upstream
+    /// cap failed, so it is logged loudly rather than trimmed — silently shrinking the prompt
+    /// would hide the defect and change the answer at the same time.
+    /// </summary>
+    private IReadOnlyList<ChatMessage> BuildPrompt(TicketContext ticket, DraftRequest request)
+    {
+        var messages = DraftPrompt.Build(ticket, request, _options.MaxTranscriptCharacters);
+        var characters = messages.Sum(m => m.Text?.Length ?? 0);
+
+        if (characters > _options.MaxPromptCharacters)
+        {
+            logger.LogError(
+                "Prompt for ticket {TicketId} is {Characters} characters, over the {Ceiling} ceiling — an input cap is not holding",
+                ticket.Id,
+                characters,
+                _options.MaxPromptCharacters);
+        }
+
+        return messages;
     }
 
     private static bool HasCustomerMessage(TicketContext ticket) =>

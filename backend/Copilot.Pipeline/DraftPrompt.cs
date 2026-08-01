@@ -33,12 +33,15 @@ public static class DraftPrompt
     /// <summary>
     /// Builds the full conversation: ticket transcript, then the agent's refinement turns.
     /// </summary>
-    public static IReadOnlyList<ChatMessage> Build(TicketContext ticket, DraftRequest request)
+    public static IReadOnlyList<ChatMessage> Build(
+        TicketContext ticket,
+        DraftRequest request,
+        int maxTranscriptCharacters)
     {
         List<ChatMessage> messages =
         [
             new(ChatRole.System, System),
-            new(ChatRole.User, BuildTranscript(ticket)),
+            new(ChatRole.User, BuildTranscript(ticket, maxTranscriptCharacters)),
         ];
 
         foreach (var turn in request.Turns)
@@ -55,23 +58,60 @@ public static class DraftPrompt
         return messages;
     }
 
-    public static string BuildTranscript(TicketContext ticket)
+    public static string BuildTranscript(TicketContext ticket, int maxCharacters)
     {
+        var blocks = ticket.Messages
+            .Where(m => !m.IsInternalNote)
+            .Select(m => $"--- {(m.FromAgent ? "Support agent" : "Customer")} ({m.SenderName ?? "unknown"}):\n{m.Text}\n")
+            .ToList();
+
+        var kept = TakeNewestWithin(blocks, maxCharacters);
+
         var transcript = new StringBuilder();
         transcript.AppendLine($"Ticket subject: {ticket.Subject}");
         transcript.AppendLine($"Customer: {ticket.Customer?.Name ?? "unknown"}");
         transcript.AppendLine();
-        transcript.AppendLine("Conversation (oldest first):");
 
-        foreach (var message in ticket.Messages.Where(m => !m.IsInternalNote))
+        if (kept.Count < blocks.Count)
         {
-            var speaker = message.FromAgent ? "Support agent" : "Customer";
-            transcript.AppendLine($"--- {speaker} ({message.SenderName ?? "unknown"}):");
-            transcript.AppendLine(message.Text);
+            transcript.AppendLine(
+                $"[Earlier messages omitted: showing the most recent {kept.Count} of {blocks.Count}.]");
             transcript.AppendLine();
+        }
+
+        transcript.AppendLine("Conversation (oldest first):");
+        foreach (var block in kept)
+        {
+            transcript.AppendLine(block);
         }
 
         transcript.AppendLine("Draft the support agent's next reply to the customer.");
         return transcript.ToString();
+    }
+
+    /// <summary>
+    /// Keeps the newest messages that fit, in original order. A long thread's opening is
+    /// rarely what the next reply must answer, so age is the right thing to drop — and at
+    /// least one message is always kept, or there would be nothing to reply to.
+    /// </summary>
+    private static List<string> TakeNewestWithin(List<string> blocks, int maxCharacters)
+    {
+        var kept = new List<string>();
+        var used = 0;
+
+        for (var index = blocks.Count - 1; index >= 0; index--)
+        {
+            var block = blocks[index];
+            if (kept.Count > 0 && used + block.Length > maxCharacters)
+            {
+                break;
+            }
+
+            kept.Add(block);
+            used += block.Length;
+        }
+
+        kept.Reverse();
+        return kept;
     }
 }

@@ -434,3 +434,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Claude Code personal settings — machine-local, never committed
+.claude/settings.local.json

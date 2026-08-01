@@ -5,6 +5,7 @@ using Copilot.Domain;
 using Copilot.Gorgias;
 using Copilot.Pipeline;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.Options;
 
 namespace Copilot.Api.Endpoints;
 
@@ -19,18 +20,21 @@ public static class DraftEndpoints
             DraftRequestV1? request,
             IGorgiasTicketClient gorgias,
             IDraftingPipeline pipeline,
+            IOptions<DraftLimitsOptions> limits,
             CancellationToken cancellationToken) =>
         {
+            if (!TryReadRequest(request, limits.Value, out var draftRequest, out var error))
+            {
+                return Results.BadRequest(new { message = error });
+            }
+
             var ticket = await gorgias.GetTicketAsync(ticketId, cancellationToken);
             if (ticket is null)
             {
                 return Results.NotFound();
             }
 
-            var result = await pipeline.GenerateDraftAsync(
-                ticket,
-                request?.ToDomain() ?? DraftRequest.Initial,
-                cancellationToken);
+            var result = await pipeline.GenerateDraftAsync(ticket, draftRequest, cancellationToken);
 
             return result switch
             {
@@ -46,10 +50,19 @@ public static class DraftEndpoints
             DraftRequestV1? request,
             IGorgiasTicketClient gorgias,
             IDraftingPipeline pipeline,
+            IOptions<DraftLimitsOptions> limits,
             HttpContext http,
             ILogger<Program> logger,
             CancellationToken cancellationToken) =>
         {
+            if (!TryReadRequest(request, limits.Value, out var draftRequest, out var error))
+            {
+                // Rejected before the stream starts, so a normal status code still reaches the panel.
+                http.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await http.Response.WriteAsJsonAsync(new { message = error }, cancellationToken);
+                return;
+            }
+
             var ticket = await gorgias.GetTicketAsync(ticketId, cancellationToken);
             if (ticket is null)
             {
@@ -76,7 +89,7 @@ public static class DraftEndpoints
 
                 await foreach (var chunk in pipeline.StreamDraftAsync(
                     ticket,
-                    request?.ToDomain() ?? DraftRequest.Initial,
+                    draftRequest,
                     cancellationToken))
                 {
                     switch (chunk)
@@ -114,6 +127,26 @@ public static class DraftEndpoints
         }).RequireRateLimiting(RateLimitingExtensions.DraftPolicy);
 
         return app;
+    }
+
+    /// <summary>
+    /// An absent body is the initial draft request; a present one must satisfy the caps
+    /// before any of it reaches the model.
+    /// </summary>
+    private static bool TryReadRequest(
+        DraftRequestV1? request,
+        DraftLimitsOptions limits,
+        out DraftRequest draftRequest,
+        out string error)
+    {
+        if (request is null)
+        {
+            draftRequest = DraftRequest.Initial;
+            error = "";
+            return true;
+        }
+
+        return request.TryValidate(limits, out draftRequest, out error);
     }
 
     /// <summary>
