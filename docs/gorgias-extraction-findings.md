@@ -10,9 +10,16 @@ Reproduce with `python tools/ingest/research_extraction.py 12`.
 
 ## The headline
 
-**20,042 closed tickets in the last 12 months.** A full backfill takes about **3 hours**, not
-an overnight run — and the reason is that the assumption this task was created to work around
-does not hold on this account.
+**20,042 closed tickets in the last 12 months, of which roughly 11,700 are usable.** A full
+backfill takes about **3 hours**, not an overnight run — the assumption this task was created
+to work around does not hold on this account.
+
+**"Closed" is not "resolved".** Gorgias has no status distinguishing the two, and a support
+inbox closes far more than support conversations: carrier notifications, review requests,
+marketing sends and vendor spam all arrive as tickets and all get closed. Sampling 60 closed
+tickets, only **58 % contain a real customer message followed by a public agent reply** — the
+unit that becomes an exemplar. Applied to the window, that is **~11,700 usable tickets**, not
+20,042.
 
 | Question | Planned assumption | Measured |
 |---|---|---|
@@ -45,6 +52,58 @@ messages only      median 0.14 s
 payload            median 37,684 chars   max 122,269
 integrations       median 2 chars        max 2
 ```
+
+## Is a closed ticket a usable exemplar?
+
+Measured over a 60-ticket sample, with a wider 941-ticket scan for the structural numbers.
+Reproduce with `python tools/ingest/research_exchanges.py 60`.
+
+```
+closed tickets sampled                          60
+with a customer message answered by an agent    35   (58 %)
+median agent reply length                       359 chars
+```
+
+The waste is concentrated by source, and that is actionable:
+
+| Arrived via | Sampled | Usable | Rate |
+|---|---|---|---|
+| `gorgias_chat` | 15 | 15 | **100 %** |
+| `email` | 39 | 17 | **44 %** |
+| `helpdesk` | 4 | 2 | 50 % |
+| `instagram` | 2 | 1 | 50 % |
+
+Chat is almost pure signal. Email is where the notifications, marketing and vendor mail live.
+
+**A quarter of closed tickets have exactly one message** (233 of 941 scanned), which cannot be
+an exchange by definition. `messages_count` is on the *listing*, so filtering those out costs
+no extra request — a free 25 % reduction in tickets to fetch before any content is read.
+
+Spam and trash are not inflating the count: **0 %** of 941 scanned closed tickets were flagged
+`spam` or carried a `trashed_datetime`.
+
+**What we still cannot tell** is whether the customer was actually satisfied. There is no
+resolution field, no CSAT on the ticket object, and a ticket closed after an agent reply may
+have been closed because the customer gave up. "An agent answered" is the strongest available
+proxy, and it is a proxy.
+
+## Do we get the whole conversation?
+
+**Yes.** Across 60 sampled tickets, zero returned fewer messages than their declared
+`messages_count`. The deepest threads in a 941-ticket scan were fetched directly to test the
+edge:
+
+```
+ticket 274313359   declared 23   returned 23   OK
+ticket 274207905   declared 22   returned 22   OK
+ticket 276826100   declared 21   returned 21   OK
+```
+
+A single `GET /api/tickets/{id}` returns the complete thread, including internal notes, which
+extraction then discards. No pagination is needed at the thread depths this account produces
+(median 2 messages, deepest observed 23). If a far deeper thread ever appears, the
+`messages_count` field is the check that would catch truncation — worth asserting in the
+extraction job rather than assuming.
 
 ## What decides the schedule
 
@@ -89,18 +148,23 @@ hour two into a 1-hour job, and both error classes above make that likely enough
 
 ## What this means downstream
 
-**Volume is larger than the plan assumed, and time is far smaller.** At roughly two
-question-and-answer exchanges per ticket, 20,042 closed tickets produce on the order of
-**40,000 chunks** — against 400 in the index today, so about a hundredfold increase.
+**Volume is larger than the plan assumed, time is far smaller, and the usable share is well
+under the headline.** ~11,700 usable tickets at a median of 2 messages produce on the order of
+**12,000–20,000 chunks** — against 400 in the index today, so roughly a thirtyfold increase
+rather than the hundredfold a naive read of "20,042" would suggest.
 
 Two consequences worth checking before ingesting:
 
-- **Index headroom.** 40,000 vectors at 1536 dimensions is roughly 250 MB before text. Azure
+- **Index headroom.** ~20,000 vectors at 1536 dimensions is roughly 120 MB before text. Azure
   AI Search Basic allows 2 GB per partition, and a reindex briefly holds two versions at once,
-  so it fits — but with less margin than the current corpus suggests.
+  so this fits comfortably.
 - **Redaction volume.** The manual review sample stays at 50 exemplars, but it is now sampling
-  from 40,000 rather than a few thousand. The fail-closed batch check and the independent
-  sweep over the live index carry proportionally more weight.
+  from tens of thousands rather than a few thousand. The fail-closed batch check and the
+  independent sweep over the live index carry proportionally more weight.
+- **Fetch only what is worth fetching.** Filtering the listing to `status == "closed"` and
+  `messages_count >= 2` costs nothing and removes about a quarter of the work before any
+  content is read. The agent-reply test needs the messages, so the remaining ~42 % of waste
+  can only be dropped after fetching.
 
 ## Anomaly worth noting
 
