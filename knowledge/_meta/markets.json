@@ -1,0 +1,75 @@
+{
+  "$comment": "The 14 valid market codes. Generated from knowledge/policy/ by tools/knowledge/generate_meta.py \u2014 edit the corpus, not this file. 'storefront' is evidence for R-6: market maps 1:1 onto storefront domain.",
+  "markets": [
+    {
+      "code": "AU_NZ",
+      "name": "Australia and New Zealand",
+      "storefront": "au.timeresistance.com"
+    },
+    {
+      "code": "CA",
+      "name": "Canada",
+      "storefront": "ca.timeresistance.com"
+    },
+    {
+      "code": "DE",
+      "name": "Germany",
+      "storefront": "timeresistance.de"
+    },
+    {
+      "code": "ES",
+      "name": "Spain",
+      "storefront": "timeresistance.es"
+    },
+    {
+      "code": "EU",
+      "name": "European Union",
+      "storefront": "eu.timeresistance.com"
+    },
+    {
+      "code": "FR",
+      "name": "France",
+      "storefront": "timeresistance.fr"
+    },
+    {
+      "code": "GLOBAL",
+      "name": "Global (fallback)",
+      "storefront": "global.timeresistance.com"
+    },
+    {
+      "code": "IT",
+      "name": "Italy",
+      "storefront": "timeresistance.it"
+    },
+    {
+      "code": "NL",
+      "name": "Netherlands",
+      "storefront": "timeresistance.nl"
+    },
+    {
+      "code": "PL",
+      "name": "Poland",
+      "storefront": "timeresistance.pl"
+    },
+    {
+      "code": "SE",
+      "name": "Sweden",
+      "storefront": "timeresistance.se"
+    },
+    {
+      "code": "SG",
+      "name": "Singapore",
+      "storefront": "timeresistance.sg"
+    },
+    {
+      "code": "UK",
+      "name": "United Kingdom",
+      "storefront": "timeresistance.co.uk"
+    },
+    {
+      "code": "US",
+      "name": "United States",
+      "storefront": "timeresistance.com"
+    }
+  ]
+}

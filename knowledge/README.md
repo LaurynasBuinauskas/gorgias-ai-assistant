@@ -67,21 +67,83 @@ location.
 
 ## Front-matter contract
 
-The interface between content and pipeline. Everything else can change as long as this holds.
+The interface between content and pipeline. Everything else in this tree can change as long
+as this holds.
+
+| Field | Required | Rule |
+|---|---|---|
+| `market` | always | A `code` from `_meta/markets.json`. Must match the directory name |
+| `topic` | policy, internal | A `slug` from `_meta/topics.json`. Must match the filename |
+| `exposure` | always | `customer` or `internal`. **Never defaulted** |
+| `effective_date` | always | ISO date, parseable |
+| `version` | always | Integer, incremented on meaningful change |
+| `source_url` | when one exists | Citation target |
+| `tags` | templates | List, from the source `TAGS:` line. At least one |
+
+`exposure` is required with no default because the safe default and the useful default point
+in opposite directions: defaulting to `customer` risks leaking internal procedure, defaulting
+to `internal` silently makes content unretrievable. A missing value fails validation instead.
+
+### Worked example — policy
 
 ```yaml
 ---
-market: DE                    # one of _meta/markets.json, or GLOBAL
-topic: warranty               # one of _meta/topics.json
-exposure: customer            # customer | internal — required, never defaulted
+market: DE
+topic: warranty
+exposure: customer
 effective_date: 2026-06-22
 source_url: https://timeresistance.de/pages/garantie
 version: 1
 ---
+# Warranty
+
+## Lebenslange Garantie
+...
 ```
 
-`exposure` is required with no default. A missing value fails validation rather than being
-guessed, because the safe default and the useful default point in opposite directions.
+### Worked example — template
+
+Templates are approved wording. The body is reproduced verbatim; paraphrase is a defect.
+`market: GLOBAL` because the templates are not market-specific.
+
+```yaml
+---
+market: GLOBAL
+topic: personalization
+exposure: customer
+effective_date: 2026-06-22
+version: 1
+tags: [personalization, monogram]
+---
+# Personalization: MISSING DETAILS - MONOGRAM
+
+Hi {{customer_name}},
+...
+```
+
+### Worked example — internal procedure
+
+Never quoted to a customer. Retrieved to inform what the agent decides, and held out of the
+quotable block when the prompt is assembled.
+
+```yaml
+---
+market: GLOBAL
+topic: warranty
+exposure: internal
+effective_date: 2026-06-22
+version: 1
+---
+# Repair triage
+...
+```
+
+## `_meta/`
+
+`markets.json` and `topics.json` are **generated** from the corpus by
+`tools/knowledge/generate_meta.py` — edit the content, not the lists. The generator asserts
+each market resolves to exactly one storefront domain, which is what makes
+`markets.json[].storefront` trustworthy as evidence for market resolution (`R-6`).
 
 ## The PDFs in `docs/sop/`
 

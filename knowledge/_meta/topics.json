@@ -1,0 +1,45 @@
+{
+  "$comment": "The valid topic slugs. Generated from knowledge/policy/ by tools/knowledge/generate_meta.py \u2014 edit the corpus, not this file.",
+  "topics": [
+    {
+      "slug": "cookies-policy",
+      "title": "Cookies Policy"
+    },
+    {
+      "slug": "faqs",
+      "title": "FAQs"
+    },
+    {
+      "slug": "impressum",
+      "title": "Impressum"
+    },
+    {
+      "slug": "international",
+      "title": "International"
+    },
+    {
+      "slug": "personalization",
+      "title": "Personalization"
+    },
+    {
+      "slug": "privacy-policy",
+      "title": "Privacy Policy"
+    },
+    {
+      "slug": "shipping-and-returns",
+      "title": "Shipping and Returns"
+    },
+    {
+      "slug": "terms-and-conditions",
+      "title": "Terms & Conditions"
+    },
+    {
+      "slug": "warranty",
+      "title": "Warranty"
+    },
+    {
+      "slug": "withdrawal-instructions",
+      "title": "Withdrawal Instructions"
+    }
+  ]
+}
