@@ -134,6 +134,52 @@ plan wanted to avoid.
 
 Nothing is blocked while this sits open, but it should not reach go-live undecided.
 
+### D-6 · The relevance gate does not discriminate on real tickets — `R-7`, `E-6`
+
+**Ours to decide. Found by measurement on 2026-08-01, and it contradicts a design assumption.**
+
+`rag-pipeline-proposal.md` §8 step 4 assumes a calibrated reranker-score threshold separates
+questions the policy corpus covers from ones it does not. `launch-plan.md` §3 calls the
+resulting gate "the mechanism that converts 'confidently wrong' into 'honestly silent'" and
+"the most important guardrail in the beta".
+
+On clean hand-written questions the assumption holds — covered 2.71-2.89, uncovered 1.53-1.79.
+**On 18 real tickets it does not:**
+
+| Ticket | Score | Covered by policy? |
+|---|---|---|
+| `Christmas Greetings from all of us at Zryya!` | **2.923** | No — not a question at all |
+| `Re: Your timeresistance.com return request has expired` | 2.676 | Yes |
+| `Logo Gravur Bestellung #DE#4145` | 2.404 | Yes |
+| `Return Item` | **2.186** | **Yes** |
+| `New customer message on 1 August 2026` | 2.060 | Unknown — no subject content |
+| `how did I check a gift card balance?` | 1.677 | No |
+
+Range 1.677–2.923, median 2.248. A threshold of 2.2 **declined a genuine returns question and
+admitted a holiday greeting.** Real ticket text carries signatures, quoted history and
+pleasantries, and the reranker scores similarity to *some* policy chunk rather than whether
+policy answers the question.
+
+**Interim position:** the threshold is lowered to 1.6, below the lowest observed real ticket,
+making it a floor that fires only when retrieval found essentially nothing. Coverage is carried
+by the prompt rule added in `R-8` — "if the policy shown does not cover the question, say
+plainly that you cannot confirm it". Tooling to re-measure is `tools/ingest/calibrate_gate.py`.
+
+**What this costs:** uncovered questions now reach the model, so they cost tokens. The
+"no spend, no invented answer" property from §8 is weakened to "no invented answer".
+
+**Options, none free:**
+
+| Option | Trade |
+|---|---|
+| **A — keep the floor, rely on the prompt** (current) | Simple, no extra cost per draft. Coverage depends on model compliance, measured by eval class D rather than guaranteed |
+| **B — clean the query before retrieving** | Strip signatures, quoted history and boilerplate so the score reflects the question. Likely improves separation; needs its own calibration run and does not obviously fix "Christmas Greetings" |
+| **C — second-stage check** | Ask a cheap model "does this policy answer this question?" before drafting. Restores the hard gate; adds a call per draft and a second thing to evaluate |
+
+I would not choose between these before eval class D exists, because D is what measures whether
+the current behaviour is actually a problem. Flagging it now so the weakened guarantee is a
+decision rather than a silent regression.
+
 ### D-3 · Redaction sample signed off — `L-7`, `R-4`
 
 Only applies if ticket exemplars ship. The client chose to redact personal data and retain

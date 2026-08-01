@@ -87,6 +87,8 @@ public static class DraftEndpoints
                     },
                     cancellationToken);
 
+                IReadOnlyList<DraftCitationV1> citations = [];
+
                 await foreach (var chunk in pipeline.StreamDraftAsync(
                     ticket,
                     draftRequest,
@@ -96,6 +98,13 @@ public static class DraftEndpoints
                     {
                         case DraftChunk.Delta delta:
                             await WriteEventAsync(http.Response, "delta", new { text = delta.Text }, cancellationToken);
+                            break;
+
+                        case DraftChunk.Sources sources:
+                            // Carried on the existing "done" event rather than a new one: older
+                            // panels ignore unknown fields but would ignore an unknown event too,
+                            // and this keeps the stream contract to the four events they know.
+                            citations = [.. sources.Citations.Select(DraftCitationV1.From)];
                             break;
 
                         case DraftChunk.Insufficient insufficient:
@@ -108,7 +117,7 @@ public static class DraftEndpoints
                     }
                 }
 
-                await WriteEventAsync(http.Response, "done", new { draftId, ticketId }, cancellationToken);
+                await WriteEventAsync(http.Response, "done", new { draftId, ticketId, citations }, cancellationToken);
             }
             catch (OperationCanceledException)
             {

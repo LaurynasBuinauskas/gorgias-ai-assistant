@@ -25,15 +25,24 @@ public sealed class RetrievalOptions
     public int TicketTopK { get; set; }
 
     /// <summary>
-    /// Below this reranker score the policy corpus is treated as not covering the question,
-    /// and the pipeline declines instead of improvising. This converts "confidently wrong"
-    /// into "honestly silent" and is the most important guardrail in the beta.
+    /// Below this reranker score the policy corpus is treated as not covering the question.
     ///
-    /// Calibrated 2026-08-01 against the live index rather than guessed. Covered questions
-    /// ("how long do I have to return an item", "what is your warranty") scored 2.71-2.89;
-    /// uncovered ones ("wholesale pricing for bulk corporate orders", "file my tax return
-    /// with the IRS") scored 1.53-1.79. 2.2 sits above every uncovered sample and below every
-    /// covered one. Revisit once the eval suite gives real data.
+    /// **This is a floor, not the primary coverage control** — measured, not assumed. On clean
+    /// hand-written questions the score separates cleanly: covered 2.71-2.89, uncovered
+    /// 1.53-1.79. On 18 real tickets it does not. "Return Item", which policy plainly covers,
+    /// scored 2.186, while "Christmas Greetings from all of us at Zryya!" — not a policy
+    /// question at all — scored 2.923, the highest in the sample. Real ticket text carries
+    /// signatures, quoted history and pleasantries, and the reranker measures similarity to
+    /// *some* policy chunk rather than whether policy answers the question.
+    ///
+    /// A threshold of 2.2 therefore declined a genuine returns question and admitted a holiday
+    /// greeting. Set to 1.6 — below the lowest observed real ticket (1.677) — so it fires only
+    /// when retrieval found essentially nothing, and coverage is carried instead by the prompt
+    /// rule telling the model to say when the policy shown does not cover the question.
+    ///
+    /// The cost of that choice is real: uncovered questions now reach the model, so they cost
+    /// tokens. Eval class D measures whether declining actually happens; see `open-questions.md`
+    /// D-6 for the decision this needs.
     /// </summary>
-    public double MinimumPolicyScore { get; set; } = 2.2;
+    public double MinimumPolicyScore { get; set; } = 1.6;
 }

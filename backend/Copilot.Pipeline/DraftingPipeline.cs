@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Copilot.Domain;
+using Copilot.Knowledge;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -44,16 +45,22 @@ public sealed class DraftingPipeline(
         }
 
         var response = await chatClient.GetResponseAsync(
-            BuildPrompt(ticket, request, context),
+            BuildPrompt(ticket, request, context, out var citable),
             ChatOptions,
             cancellationToken);
 
         LogUsage(ticket, response.Usage);
 
-        var body = response.Text.Trim();
-        return body.Length == 0
-            ? new PipelineResult.InsufficientKnowledge("The model returned an empty draft; try again.")
-            : new PipelineResult.Success(CreateDraft(ticket, body));
+        var splitter = SourceSplitterExtensions.SplitAll(response.Text);
+        var body = splitter.Body;
+        if (body.Length == 0)
+        {
+            return new PipelineResult.InsufficientKnowledge("The model returned an empty draft; try again.");
+        }
+
+        var citations = splitter.ResolveCitations(citable);
+        LogCitations(ticket, citations, context);
+        return new PipelineResult.Success(CreateDraft(ticket, body, citations));
     }
 
     public async IAsyncEnumerable<DraftChunk> StreamDraftAsync(
@@ -75,19 +82,29 @@ public sealed class DraftingPipeline(
         }
 
         var updates = chatClient.GetStreamingResponseAsync(
-            BuildPrompt(ticket, request, context),
+            BuildPrompt(ticket, request, context, out var citable),
             ChatOptions,
             cancellationToken);
 
+        // The source list is held back rather than streamed: the agent copies what they see,
+        // and labels are for review, not for the customer.
+        var splitter = new SourceSplitter();
         await foreach (var update in updates.WithCancellation(cancellationToken))
         {
-            if (update.Text is { Length: > 0 } text)
+            if (update.Text is { Length: > 0 } text && splitter.Push(text) is { Length: > 0 } ready)
             {
-                yield return new DraftChunk.Delta(text);
+                yield return new DraftChunk.Delta(ready);
             }
         }
 
-        logger.LogInformation("Streamed draft for ticket {TicketId}", ticket.Id);
+        if (splitter.Complete() is { Length: > 0 } tail)
+        {
+            yield return new DraftChunk.Delta(tail);
+        }
+
+        var citations = splitter.ResolveCitations(citable);
+        LogCitations(ticket, citations, context);
+        yield return new DraftChunk.Sources(citations);
     }
 
     private ChatOptions ChatOptions => new() { MaxOutputTokens = _options.MaxOutputTokens };
@@ -131,6 +148,28 @@ public sealed class DraftingPipeline(
     }
 
     /// <summary>
+    /// Source paths only, never chunk text or draft body — a log line must not become a third
+    /// copy of policy or customer content.
+    /// </summary>
+    private void LogCitations(
+        TicketContext ticket,
+        IReadOnlyList<DraftCitation> citations,
+        RetrievedContext context)
+    {
+        if (context.Bypassed)
+        {
+            return;
+        }
+
+        logger.LogInformation(
+            "Draft for ticket {TicketId} cited {Count} source(s) in market {Market}: {Sources}",
+            ticket.Id,
+            citations.Count,
+            context.Market.Market,
+            citations.Count == 0 ? "none" : string.Join(", ", citations.Select(c => c.SourcePath)));
+    }
+
+    /// <summary>
     /// Assembles the prompt and checks it against the ceiling. Exceeding it means an upstream
     /// cap failed, so it is logged loudly rather than trimmed — silently shrinking the prompt
     /// would hide the defect and change the answer at the same time.
@@ -138,9 +177,11 @@ public sealed class DraftingPipeline(
     private IReadOnlyList<ChatMessage> BuildPrompt(
         TicketContext ticket,
         DraftRequest request,
-        RetrievedContext context)
+        RetrievedContext context,
+        out IReadOnlyDictionary<string, KnowledgeChunk> citable)
     {
-        var messages = DraftPrompt.Build(ticket, request, context, _options.MaxTranscriptCharacters);
+        var messages = DraftPrompt.Build(
+            ticket, request, context, _options.MaxTranscriptCharacters, out citable);
         var characters = messages.Sum(m => m.Text?.Length ?? 0);
 
         if (characters > _options.MaxPromptCharacters)
@@ -158,12 +199,16 @@ public sealed class DraftingPipeline(
     private static bool HasCustomerMessage(TicketContext ticket) =>
         ticket.Messages.Any(m => m is { FromAgent: false, IsInternalNote: false });
 
-    private static Draft CreateDraft(TicketContext ticket, string body) => new()
+    private static Draft CreateDraft(
+        TicketContext ticket,
+        string body,
+        IReadOnlyList<DraftCitation> citations) => new()
     {
         DraftId = Guid.NewGuid().ToString("N"),
         TicketId = ticket.Id,
         Body = body,
         Language = ticket.Language,
+        Citations = citations,
     };
 
     private void LogUsage(TicketContext ticket, UsageDetails? usage) =>
