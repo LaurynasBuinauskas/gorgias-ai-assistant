@@ -173,3 +173,69 @@ dated `2026-12-31` while its `closed_datetime` is `2025-12-31`. Harmless for a
 backward-looking window, but any code that assumes `created <= closed` or that terminates a
 walk on the first out-of-range date will behave oddly. The counting walk here terminates on
 the oldest date in a page rather than the first, for that reason.
+
+---
+
+# Market resolution — answered from the data
+
+**Date:** 2026-08-01 · read-only · reproduce with
+`python tools/ingest/research_market_coverage.py 80`
+
+The plan treats market resolution as a blocking client question. It is largely answerable
+from ticket metadata: **92 % of tickets can be assigned a market without asking anyone.**
+
+## The three signals that exist
+
+| Signal | Field | Present on | Precision |
+|---|---|---|---|
+| Order storefront | `customer.integrations.<id>.orders[].order_status_url` | 39 % | Highest — the shop whose terms actually apply to that purchase |
+| Chat page | `messages[].meta.current_page` | 20 % | High — the storefront the customer was browsing |
+| Support inbox | `messages[].source.to[].address` | 71 % | Coarse — see the trap below |
+
+Taken in that order, first match wins:
+
+```
+resolved by order storefront   31  (39 %)
+resolved by chat page          11  (14 %)
+resolved by support inbox      32  (40 %)
+unresolved                      6   (8 %)   -> GLOBAL
+```
+
+**Each Shopify integration maps to exactly one storefront.** Across 60 tickets, every
+integration id resolved to a single domain — so the tenant runs a separate Shopify connection
+per storefront, and the order tells you which shop it came from.
+
+## The trap in the inbox signal
+
+Reading the inbox *domain* alone is wrong. Observed addresses include:
+
+```
+care@timeresistance.com              21    shared, market-ambiguous
+community@timeresistance.com          8    shared
+kundenservice@timeresistance.com      2    German queue, on the .com domain
+serviceclient@timeresistance.com      1    French queue, on the .com domain
+community@timeresistance.co.uk        1    UK
+bonjour@timeresistance.fr             1    FR
+magazin@timeresistance.de             1    DE
+```
+
+`kundenservice@timeresistance.com` is the German queue sitting on the US domain. A naive
+domain match labels it `US` and answers a German customer with US terms — precisely the
+failure the market filter exists to prevent. The local part has to be read too.
+
+## The open question is now much smaller
+
+**Signals disagree on 13 of 80 tickets (16 %).** Typically: the customer ordered from one
+storefront and wrote to a different inbox.
+
+The implemented order resolves that by trusting the order over the inbox, on the reasoning
+that the terms which apply are those of the shop that took the money, not the mailbox the
+customer happened to use. That is a defensible reading and it is **not a technical decision** —
+it is a business one with legal weight.
+
+So the question for the client shrinks from *"how do we determine market?"* to:
+
+> When a customer who ordered from the German store emails the general `.com` inbox, whose
+> terms apply — the German store's, or the one they wrote to?
+
+Every ticket logs which signal decided it, so this can be changed and audited after the fact.
