@@ -1,0 +1,20 @@
+{
+  "id": 950709,
+  "subject": "Reso",
+  "status": "closed",
+  "channel": "email",
+  "language": "it",
+  "customer": {
+    "name": "Kim Larsen",
+    "email": "kim.larsen@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Kim Larsen",
+      "text": "Buongiorno, vorrei restituire la mia borsa. Quanto tempo ho a disposizione e chi paga le spese di spedizione?"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": 950695,
+  "subject": "Retour",
+  "status": "closed",
+  "channel": "email",
+  "language": "nl",
+  "customer": {
+    "name": "Kim Larsen",
+    "email": "kim.larsen@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Kim Larsen",
+      "text": "Goedendag, ik wil mijn tas terugsturen. Hoeveel tijd heb ik daarvoor en wie betaalt de retourzending?"
+    }
+  ]
+}

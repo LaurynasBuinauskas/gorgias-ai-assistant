@@ -1,0 +1,10 @@
+# Client decision 2026-08-01: drafts are always English, because the agents who review them
+# read English. A draft an agent cannot read is a draft they cannot check, which makes
+# human-in-the-loop ceremonial rather than real.
+id: b-it
+class: language
+fixture: language-it.json
+market: GLOBAL
+expect:
+  language: en
+  must_not_be: insufficient_data

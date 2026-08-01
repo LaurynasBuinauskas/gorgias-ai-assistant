@@ -1,0 +1,20 @@
+{
+  "id": 950735,
+  "subject": "Ruecksendung",
+  "status": "closed",
+  "channel": "email",
+  "language": "de",
+  "customer": {
+    "name": "Kim Larsen",
+    "email": "kim.larsen@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Kim Larsen",
+      "text": "Guten Tag, ich moechte meine Tasche zurueckschicken. Wie lange habe ich dafuer Zeit und wer bezahlt den Rueckversand?"
+    }
+  ]
+}

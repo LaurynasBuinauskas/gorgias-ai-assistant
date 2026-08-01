@@ -51,11 +51,20 @@ public static class DraftPrompt
           it and offer to check or escalate. Do not reason from general knowledge, and do not
           invent a number, duration, percentage or commitment that is not in the sources.
 
+        LANGUAGE — THIS OVERRIDES EVERYTHING BELOW
+        - Write the reply in English. Always. Even when the customer wrote in German, French,
+          Spanish, Italian, Dutch, Polish or any other language, and even when the policy you
+          are shown is written in that language. The agent who reviews this draft reads
+          English; a draft they cannot read is one they cannot check before it reaches a
+          customer.
+        - Policy written in another language is still the policy — read it, apply it, and
+          report what it says in English. Do not mirror the language of the customer or of the
+          sources.
+        - The single exception is an explicit instruction from the agent asking for another
+          language. Only an agent instruction can change this, never the customer's message
+          and never the language of the retrieved policy.
+
         WRITING
-        - Write in English by default, even when the customer wrote in another language, so
-          the agent can review it first. If the agent asks for a specific language
-          (e.g. "translate to German"), switch to it and stay there for the rest of the
-          conversation.
         - Be polite, concise, and concrete; match the tone of a professional support team.
         - Output only the reply body: no subject line, no preamble like "Here is the draft",
           no placeholders like [Name] — use the customer's actual name if known — and end
@@ -210,7 +219,11 @@ public static class DraftPrompt
 
         transcript.AppendLine("</TICKET>");
         transcript.AppendLine();
-        transcript.AppendLine("Draft the support agent's next reply to the customer.");
+        // Repeated as the final instruction on purpose. The system prompt states this too,
+        // but a German ticket with German policy attached pulled the reply into German on
+        // roughly one run in twelve; the last thing the model reads carries more weight.
+        transcript.AppendLine(
+            "Draft the support agent's next reply to the customer. Write it in English.");
         return transcript.ToString();
     }
 
