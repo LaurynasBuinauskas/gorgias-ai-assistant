@@ -20,6 +20,12 @@ builder.Services.AddOptions<DraftLimitsOptions>()
 
 // Kestrel defaults to 30 MB. This API only ever accepts small JSON, so an oversized body is
 // refused at the transport layer before any handler — or the model — sees it.
+//
+// This is a backstop, not the main control: a request large enough to matter but small
+// enough to parse is caught by DraftLimitsOptions and gets a clean 400 explaining which cap
+// it broke. Verified against production — a 100 KB body returns 400, while anything over the
+// limit below is refused before parsing and surfaces as 502, because App Service's front end
+// reports Kestrel's connection abort rather than passing through 413.
 builder.WebHost.ConfigureKestrel((context, kestrel) =>
 {
     var limits = new DraftLimitsOptions();

@@ -72,7 +72,7 @@ The storefront finding comes from repository artefacts, not from the live Gorgia
 
 | Task | Title | Depends on | Status | Commit | Note |
 |---|---|---|---|---|---|
-| `R-9` | Input caps and output token limit | — | todo | | Blocking for beta |
+| `R-9` | Input caps and output token limit | — | done | `092be5f` | Verified against production: 8/8 checks. Caps return 400 before the Gorgias lookup or any model call; `MaxOutputTokens` set on both call paths; transcript trimmed to newest messages; retrieval allowance reserved so `R-7` cannot silently blow the ceiling. Bodies over 128 KB surface as 502 (App Service reports Kestrel's abort, not 413) |
 | `L-1` | Make English-only unconditional | — | todo | | |
 | `L-3` | Prove the kill switch works end to end | — | todo | | Never exercised |
 | `P-2` | Knowledge layout and front-matter schema | — | todo | | |
