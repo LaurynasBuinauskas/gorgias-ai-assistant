@@ -14,6 +14,13 @@ never sends replies autonomously.
 | [docs/gorgias-copilot-extension-dev-guide.md](docs/gorgias-copilot-extension-dev-guide.md) | Tooling, dev workflow, build & release |
 | [docs/project-status.md](docs/project-status.md) | **Where the project stands and what's left**, tagged by phase |
 | [docs/next-tasks.md](docs/next-tasks.md) | The next batch of work, sized and ordered |
+| [docs/launch-plan.md](docs/launch-plan.md) | **Beta launch plan** — scope, guardrails, rollback |
+| [docs/rag-pipeline-proposal.md](docs/rag-pipeline-proposal.md) | Retrieval architecture for policies + closed tickets |
+| [docs/policy-management-proposal.md](docs/policy-management-proposal.md) | Policy structure and the path to self-service |
+| [docs/policy-adherence-eval-plan.md](docs/policy-adherence-eval-plan.md) | How we verify the assistant follows policy |
+| [docs/beta-execution-prompt.md](docs/beta-execution-prompt.md) | **Prompt for the agent implementing the beta**, plus task order |
+| [docs/beta-progress.md](docs/beta-progress.md) | **Task ledger** — what is done, what is blocked |
+| [docs/open-questions.md](docs/open-questions.md) | **Blockers, client questions and human actions** — everything waiting on a person |
 | [docs/implementation-plan.md](docs/implementation-plan.md) | Stage-by-stage plan with exit criteria |
 | [docs/code-audit-2026-07.md](docs/code-audit-2026-07.md) | Open security/quality findings with effort ratings |
 | [docs/azure-setup.md](docs/azure-setup.md) | One-time cloud provisioning runbook (CLI + portal) |
