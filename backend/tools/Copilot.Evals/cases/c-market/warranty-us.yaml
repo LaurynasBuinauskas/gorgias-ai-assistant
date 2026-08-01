@@ -1,0 +1,11 @@
+# Same question, US market. Every cited chunk must belong to US or GLOBAL —
+# a chunk from DE/UK/ES/AU_NZ would be another country's terms presented as this one's.
+id: c-warranty-us
+class: market
+fixture: market-warranty.json
+market: US
+expect:
+  must_cite_market:
+    - "US"
+    - "GLOBAL"
+  must_not_be: insufficient_data

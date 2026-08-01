@@ -1,0 +1,11 @@
+# Same question, AU_NZ market. Every cited chunk must belong to AU_NZ or GLOBAL —
+# a chunk from DE/US/UK/ES would be another country's terms presented as this one's.
+id: c-warranty-au_nz
+class: market
+fixture: market-warranty.json
+market: AU_NZ
+expect:
+  must_cite_market:
+    - "AU_NZ"
+    - "GLOBAL"
+  must_not_be: insufficient_data

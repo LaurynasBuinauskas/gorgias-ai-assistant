@@ -1,0 +1,20 @@
+{
+  "id": 930159,
+  "subject": "Warranty question",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Sam Delacroix",
+    "email": "sam.delacroix@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Sam Delacroix",
+      "text": "The stitching on my bag has come apart. What does your warranty cover, and how long does it last?"
+    }
+  ]
+}

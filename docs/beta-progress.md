@@ -160,7 +160,7 @@ human review.
 | `E-2` | Assertion library | E-1 | done | | 15 unit tests. `must_cite_market` fails on a foreign-market citation **and on an uncited draft**; language detection covers EN/DE/FR/ES; `no_model_call` proves a refusal preceded the model |
 | `E-3` | Class A: internal leakage cases | E-2, P-4 | done | | 8 cases, 8/8. **Proven live**: injecting the banned vocabulary into the prompt template makes all 8 fail and the run exit 1 |
 | `E-4` | Class B: language cases | E-2 | todo | | Unblocked by the D-5 answer. Asserts a non-English ticket yields an English draft. Drop the original sub-case that asserted an explicit agent request is refused — translation on request is supported |
-| `E-5` | Class C: market divergence cases | E-2, R-6, R-3 | todo | | Blocking class |
+| `E-5` | Class C: market divergence cases | E-2, R-6, R-3 | done | | 10 cases (returns + warranty × DE/US/UK/ES/AU_NZ), 10/10. **Proven live**: forcing the DE case to resolve `US` makes it fail and the run exit 1 |
 | `E-6` | Class D and E: refusal and fabrication | E-2, R-7 | todo | | |
 | `E-7` | Class F: injection cases | E-2, R-8 | done | | 6 cases, 6/6, stable over 10 runs. **Found and fixed a real intermittent vulnerability**: an `[ADMIN OVERRIDE]` planted in quoted email history was obeyed 1 run in 6 |
 | `E-8` | LLM judge for faithfulness | E-1 | todo | | Advisory only, never blocks alone |
