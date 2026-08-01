@@ -433,3 +433,49 @@ Repo → **Settings → Secrets and variables → Actions**:
 
 Repo → **Actions** → run **Deploy API**, **Deploy panel**, **Build extension**.
 Then run the verification in section 9.
+
+## 10b. The kill switch (`L-3`)
+
+Rollback lever 1: the shell mounts no panel at all, on every agent's browser, on their next
+page load. Set through an app setting, so it needs no build and no deploy.
+
+```bash
+# Engage — the assistant disappears for everyone
+az webapp config appsettings set --name gorgias-assistant-api \
+  --resource-group gorgias-assistant-rg --settings Shell__KillSwitch=true -o none
+
+# Release
+az webapp config appsettings set --name gorgias-assistant-api \
+  --resource-group gorgias-assistant-rg --settings Shell__KillSwitch=false -o none
+
+# Confirm — this is the only thing that proves it took effect
+curl -s https://gorgias-assistant-api.azurewebsites.net/v1/config
+```
+
+### Exercised against production, 2026-08-01
+
+Engaged and released once, end to end. Observed result:
+
+| Step | Observed |
+|---|---|
+| Before | `{"killSwitch":false,…}` |
+| After `=true` | took **~70 seconds** to take effect |
+| After `=false` | took **~90 seconds** to take effect |
+| While engaged | `Kill switch is ENGAGED` logged as a warning on every config request |
+
+**It is not instant, and the plan said it was.** `launch-plan.md` §9 describes this lever as
+"seconds, no deploy". The no-deploy half is true; the seconds half is not. Changing an app
+setting restarts the App Service, and the new value is not served until that completes —
+consistently a minute or more, in both directions.
+
+Consequences for whoever uses this under pressure:
+
+- **Budget two minutes, not two seconds.** If something is actively going wrong, that window
+  is real and there is no way to shorten it from here.
+- **Poll `/v1/config` until it flips.** The `az` command returns immediately and tells you
+  nothing about whether the change is live.
+- **Releasing is as slow as engaging.** Turning the assistant back on takes just as long, so
+  do not engage it speculatively.
+- **It only works while the API is up.** The shell defaults to `killSwitch: false` when the
+  API is unreachable, deliberately, so a network blip cannot silently disable the tool. If the
+  API itself is the problem, use a later lever.
