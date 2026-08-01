@@ -441,3 +441,7 @@ FodyWeavers.xsd
 # Eval reports are run artefacts, not source
 eval-report.md
 backend/tools/Copilot.Evals/eval-report.md
+
+# Extracted ticket exemplars — customer-derived data, never committed
+data/
+*.jsonl

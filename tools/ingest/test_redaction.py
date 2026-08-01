@@ -1,0 +1,259 @@
+"""Fixture suite for redaction.
+
+**Every fixture is synthetic.** The shapes are modelled on real threads — signature blocks,
+an address inside quoted email history, a phone number written in words — but every identity
+is invented. The suite is committed to the repository, and it must not become another copy of
+customer data.
+
+Two properties are checked per case:
+
+1. The identifiers listed for the case are gone.
+2. `residual_identifiers` finds nothing afterwards — the fail-closed check that decides
+   whether a batch may be indexed.
+
+Run:  python tools/ingest/test_redaction.py
+"""
+
+from __future__ import annotations
+
+import sys
+
+from redaction import redact, residual_identifiers
+
+# (name, text, known_names, must_disappear)
+CASES: list[tuple[str, str, list[str], list[str]]] = [
+    (
+        "plain email address",
+        "You can reach me at marta.kowalczyk@example.invalid any time.",
+        [],
+        ["marta.kowalczyk@example.invalid"],
+    ),
+    (
+        "house order format",
+        "My order #US#14532 still has not arrived after three weeks.",
+        [],
+        ["#US#14532"],
+    ),
+    (
+        "german order format",
+        "Bestellnummer 4471925 wurde noch nicht geliefert.",
+        [],
+        ["4471925"],
+    ),
+    (
+        "order number with prefix wording",
+        "Order number: DE#3917 was cancelled but I was still charged.",
+        [],
+        ["DE#3917"],
+    ),
+    (
+        "international phone with spaces",
+        "Call me back on +44 7700 900461 before Friday please.",
+        [],
+        ["+44 7700 900461"],
+    ),
+    (
+        "phone with punctuation",
+        "My number is (555) 019-2837, I am usually free after six.",
+        [],
+        ["(555) 019-2837"],
+    ),
+    (
+        "phone written in words",
+        "My mobile is oh seven seven double two nine one four in case the courier calls.",
+        [],
+        ["oh seven seven double two nine one four"],
+    ),
+    (
+        "customer name known from the ticket",
+        "Hi, this is Sammy Nguyen and I would like to return my bag.",
+        ["Sammy Nguyen"],
+        ["Sammy Nguyen", "Sammy"],
+    ),
+    (
+        "first name only in greeting",
+        "Hello Priya, thanks for getting back to me so quickly.",
+        ["Priya Raghunathan"],
+        ["Priya"],
+    ),
+    (
+        "uk street address",
+        "Please redeliver to 14 Alderney Street, London before Thursday.",
+        [],
+        ["14 Alderney Street"],
+    ),
+    (
+        "german street address",
+        "Die Lieferadresse ist Hauptstrasse 12, 10115 Berlin.",
+        [],
+        ["Hauptstrasse 12", "10115"],
+    ),
+    (
+        "dutch address and postcode",
+        "Ship it to Keizersgracht 210, 1016 DW Amsterdam instead.",
+        [],
+        ["Keizersgracht 210", "1016 DW"],
+    ),
+    (
+        "us zip code",
+        "The billing address zip is 94103 and the card was declined.",
+        [],
+        ["94103"],
+    ),
+    (
+        "uk postcode",
+        "My postcode is SW1A 2AA, the parcel went to the wrong one.",
+        [],
+        ["SW1A 2AA"],
+    ),
+    (
+        "canadian postcode",
+        "Delivery to M5V 3L9 was attempted twice according to the courier.",
+        [],
+        ["M5V 3L9"],
+    ),
+    (
+        "iban in a refund request",
+        "Please refund to GB29 NWBK 6016 1331 9268 19 rather than the card.",
+        [],
+        ["GB29 NWBK 6016 1331 9268 19"],
+    ),
+    (
+        "card number",
+        "The charge on 4111 1111 1111 1111 was taken twice.",
+        [],
+        ["4111 1111 1111 1111"],
+    ),
+    (
+        "tracking number",
+        "The GLS tracking number 04215509876543 shows no movement since Monday.",
+        [],
+        ["04215509876543"],
+    ),
+    (
+        "signature block with title and address",
+        "Thanks for the update, that works for me.\n\n"
+        "Kind regards,\n"
+        "Tomasz Wieczorek\n"
+        "Procurement Lead, Northgate Trading Ltd\n"
+        "8 Ferndale Road, Manchester M14 7RT\n"
+        "tomasz.wieczorek@example.invalid | +44 161 496 0187",
+        ["Tomasz Wieczorek"],
+        ["Tomasz Wieczorek", "Northgate Trading", "8 Ferndale Road",
+         "tomasz.wieczorek@example.invalid", "+44 161 496 0187", "M14 7RT"],
+    ),
+    (
+        "german signature block",
+        "Vielen Dank für die schnelle Antwort.\n\n"
+        "Mit freundlichen Grüßen\n"
+        "Annika Vogel\n"
+        "Musterweg 3\n"
+        "80331 München\n"
+        "annika.vogel@example.invalid",
+        ["Annika Vogel"],
+        ["Annika Vogel", "Musterweg 3", "80331", "annika.vogel@example.invalid"],
+    ),
+    (
+        "address inside quoted email history",
+        "Yes that is still correct.\n\n"
+        "> On 3 June, Customer Care wrote:\n"
+        "> We have your address as 27 Larkspur Avenue, Bristol BS6 5TL\n"
+        "> and your phone as 0117 496 0233. Please confirm.",
+        [],
+        ["27 Larkspur Avenue", "BS6 5TL", "0117 496 0233"],
+    ),
+    (
+        "multiple identifiers in one sentence",
+        "Order #FR#2065 to 5 Rue Lafayette, 75009 Paris, phone +33 1 70 39 84 22.",
+        [],
+        ["#FR#2065", "5 Rue Lafayette", "75009", "+33 1 70 39 84 22"],
+    ),
+    (
+        "agent name in a reply",
+        "Hi, this is Dario from the support team, I have refunded the order for you.",
+        [("Dario Pellegrini", "[AGENT]")],
+        ["Dario"],
+    ),
+    (
+        "name appearing mid sentence",
+        "I already explained to Ingrid that the strap arrived broken.",
+        ["Ingrid Halvorsen"],
+        ["Ingrid"],
+    ),
+]
+
+# Text that must survive: over-redaction destroys the thing being collected.
+MUST_SURVIVE: list[tuple[str, str, list[str]]] = [
+    ("return window", "You may return your purchase within 30 days of delivery.", ["30 days"]),
+    ("refund amount", "We have refunded EUR 45.00 to your original payment method.", ["45.00"]),
+    ("percentage", "We can offer a 20% discount on your next order.", ["20%"]),
+    ("warranty duration", "Our products carry a lifetime warranty against defects.", ["lifetime warranty"]),
+    ("business days", "Delivery within the United States takes 1-5 business days.", ["1-5 business days"]),
+]
+
+
+def check_fail_closed() -> list[str]:
+    """The check must reject text that skipped redaction — otherwise it is decoration.
+
+    A pipeline whose safety check cannot fail is worse than one with no check, because it
+    reports success either way.
+    """
+    problems: list[str] = []
+    unredacted = (
+        "Hi, this is Sammy Nguyen, order #US#14532, phone +44 7700 900461, "
+        "email sammy@example.invalid, deliver to 14 Alderney Street, London SW1A 2AA."
+    )
+
+    findings = residual_identifiers(unredacted)
+    kinds = {finding.kind for finding in findings}
+    for expected in ("ORDER", "PHONE", "EMAIL", "ADDRESS", "POSTCODE"):
+        if expected not in kinds:
+            problems.append(f"fail-closed check missed {expected} in unredacted text")
+
+    if residual_identifiers(redact(unredacted, ["Sammy Nguyen"])):
+        problems.append("fail-closed check fires on correctly redacted text (false positive)")
+
+    return problems
+
+
+def main() -> int:
+    failures: list[str] = []
+
+    print(f"== redaction fixtures ({len(CASES)} cases) ==")
+    for name, text, known, must_go in CASES:
+        redacted = redact(text, known)
+        leaked = [value for value in must_go if value.lower() in redacted.lower()]
+        residual = residual_identifiers(redacted)
+
+        if leaked:
+            failures.append(f"{name}: still present after redaction: {leaked}")
+        if residual:
+            failures.append(
+                f"{name}: fail-closed check found "
+                f"{[(f.kind, f.value) for f in residual]} in {redacted!r}")
+
+        status = "ok" if not leaked and not residual else "FAIL"
+        print(f"  [{status}] {name}")
+
+    print(f"\n== text that must survive ({len(MUST_SURVIVE)} cases) ==")
+    for name, text, must_keep in MUST_SURVIVE:
+        redacted = redact(text, [])
+        lost = [value for value in must_keep if value.lower() not in redacted.lower()]
+        if lost:
+            failures.append(f"{name}: over-redacted, lost {lost} -> {redacted!r}")
+        print(f"  [{'ok' if not lost else 'FAIL'}] {name}")
+
+    print("\n== fail-closed check ==")
+    fail_closed_problems = check_fail_closed()
+    failures.extend(fail_closed_problems)
+    print(f"  [{'ok' if not fail_closed_problems else 'FAIL'}] "
+          "rejects unredacted text, accepts redacted text")
+
+    print(f"\n{len(failures)} failure(s)")
+    for failure in failures:
+        print(f"  - {failure}")
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
