@@ -78,8 +78,56 @@ Concretely: the `P-*` content pipeline and `R-3`/`R-5` retrieval work outrank th
 `L-*` tasks. `L-1` and `L-4` are deferred for this reason.
 
 The chain to "drafts are policy-grounded" is `P-2 → P-3/P-4 → R-3` (index populated)
-`→ R-5` (retrieval callable) `→ R-7 → R-8` (retrieval used). **`R-7` is blocked on `R-6`**, so
-everything up to and including `R-5` is reachable now and the last two steps are not.
+`→ R-5` (retrieval callable) `→ R-7 → R-8` (retrieval used).
+
+### `R-6` is a soft blocker, not a hard one (established 2026-08-01)
+
+`R-6` supplies one thing: given a `TicketContext`, which market applies. Put that behind
+`IMarketResolver` with a `GLOBAL`-fallback implementation and **everything downstream can be
+built and evaluated without the client answer.**
+
+The eval track needs it least of all. The harness supplies market per case
+(`market: DE` is a field in the case format), and `E-5`'s own acceptance says *"deliberately
+forcing market resolution to `US` on the DE case makes it fail"* — the harness overrides the
+resolver by design. So even the market-divergence class tests **filtering**, not resolution.
+
+What still genuinely needs `R-6`: a real ticket in production being assigned the right
+market. Nothing else.
+
+**This does not make it optional.** Under a `GLOBAL` fallback the assistant answers from
+`GLOBAL` policy for everyone — substantively identical to every market on routine questions,
+wrong on German statutory ones. Acceptable for building and measuring; **not acceptable for
+go-live**, and `L-7` holds that line.
+
+## Execution order
+
+Phases are sequenced by what each one makes possible, not by task-ID grouping.
+
+**Phase 1 — make the assistant use the index.** `R-5` → `R-6a` → `R-7` → `R-8` → `R-11`.
+Ends with drafts grounded in policy and every retrieval traceable. Biggest single jump in
+answer quality, and the whole point of the beta.
+
+**Phase 2 — prove it works.** `E-1` → `E-2` → `E-3` → `E-4` → `E-6` → `E-7` → `E-5`.
+Failures become mechanically detectable instead of a matter of impression. `E-4` needs
+rewriting before it is built (see its row). `R-11` sits in Phase 1 deliberately: when an eval
+fails you need to see what was retrieved.
+
+**Phase 3 — ticket exemplars.** `R-1` → `R-4` → `E-11`. The parallel track from
+`launch-plan.md` §5; joins the beta only if it lands in time. `R-1` is cheap, read-only and
+decision-relevant, so it can move earlier on request. `E-11` follows `R-4` closely because
+redaction is the only control between customer PII and the index, and `E-11` is its second,
+independent verification.
+
+**Phase 4 — governance and operations.** `P-5` → `P-6` → `P-7` → `R-10` → `E-10` → `L-3`
+→ `L-5`. Content validation in CI, provenance, reindex with alias rollback, the smoke subset
+gating that rollback, and the kill switch finally exercised.
+
+**Phase 5 — ship.** `E-8` (advisory judge) → `E-9` (go-live report) → `L-6` (beta terms)
+→ `P-8` (editing runbook) → `L-7` (the gate).
+
+**`R-6` inserts wherever the client answer lands** and must be done before `L-7`.
+Two other human actions also gate `L-7`: the `P-1` per-market spot check, and the 20-draft
+human review.
 
 ## Tasks
 
