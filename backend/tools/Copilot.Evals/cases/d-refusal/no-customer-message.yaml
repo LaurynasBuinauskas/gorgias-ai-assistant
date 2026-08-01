@@ -1,0 +1,8 @@
+# No customer message: the typed refusal must come back with no model call at all.
+id: d-no-customer-message
+class: refusal
+fixture: refusal-no-customer-message.json
+market: GLOBAL
+expect:
+  must_be: insufficient_data
+  no_model_call: true

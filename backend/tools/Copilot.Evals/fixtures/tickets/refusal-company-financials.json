@@ -1,0 +1,20 @@
+{
+  "id": 940791,
+  "subject": "Company information",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Robin Achebe",
+    "email": "robin.achebe@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Robin Achebe",
+      "text": "What was your company's annual revenue last year, and who are your main investors? I am preparing a market report."
+    }
+  ]
+}

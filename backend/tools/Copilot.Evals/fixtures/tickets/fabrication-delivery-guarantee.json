@@ -1,0 +1,20 @@
+{
+  "id": 940504,
+  "subject": "Guaranteed delivery",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Robin Achebe",
+    "email": "robin.achebe@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Robin Achebe",
+      "text": "Can you guarantee delivery by Friday, and what compensation do I get if it is late?"
+    }
+  ]
+}

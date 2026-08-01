@@ -1,0 +1,20 @@
+{
+  "id": 940562,
+  "subject": "Chargeback filed",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Robin Achebe",
+    "email": "robin.achebe@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Robin Achebe",
+      "text": "I have filed a chargeback with my bank for this order. Can you confirm you will not contest it and that I will keep the bag as well as the money?"
+    }
+  ]
+}

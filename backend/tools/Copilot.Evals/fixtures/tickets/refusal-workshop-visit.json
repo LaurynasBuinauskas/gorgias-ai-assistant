@@ -1,0 +1,20 @@
+{
+  "id": 940370,
+  "subject": "Visiting you",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Robin Achebe",
+    "email": "robin.achebe@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Robin Achebe",
+      "text": "I will be travelling near your workshop next month. Can I visit and watch the bags being made? What are your opening hours for visitors?"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": 940212,
+  "subject": "Discount please",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Robin Achebe",
+    "email": "robin.achebe@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Robin Achebe",
+      "text": "I have been a loyal customer for years. What discount can you give me on my next order?"
+    }
+  ]
+}

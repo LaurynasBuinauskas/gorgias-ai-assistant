@@ -1,0 +1,20 @@
+{
+  "id": 940895,
+  "subject": "Wholesale enquiry",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Robin Achebe",
+    "email": "robin.achebe@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Robin Achebe",
+      "text": "We run a chain of boutiques and want to stock your bags. What are your wholesale prices, minimum order quantities and trade terms?"
+    }
+  ]
+}

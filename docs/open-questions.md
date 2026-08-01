@@ -163,7 +163,20 @@ plan wanted to avoid.
 
 Nothing is blocked while this sits open, but it should not reach go-live undecided.
 
-### D-6 · The relevance gate does not discriminate on real tickets — `R-7`, `E-6`
+### D-6 · ~~The relevance gate does not discriminate on real tickets~~ **LARGELY RESOLVED 2026-08-01**
+
+**Measured, now that eval class D exists.** Lowering the threshold to a 1.6 floor did
+**not** make the gate inert. Genuinely uncovered questions — company financials,
+recruitment, workshop visits — are still declined *before the model is called*,
+returning in ~330 ms against ~2,700 ms for questions that reach the model. The
+"no spend on uncovered questions" property survives for the cases that matter.
+
+What remains true is that the score does not discriminate on *ambiguous* real tickets,
+so option B (cleaning the query before retrieval) is still worth doing eventually.
+It is no longer urgent, and no longer a weakened guarantee — the floor plus the prompt
+rule are together doing the job. Original analysis retained below.
+
+### Original finding — the gate does not discriminate on real tickets — `R-7`, `E-6`
 
 **Ours to decide. Found by measurement on 2026-08-01, and it contradicts a design assumption.**
 

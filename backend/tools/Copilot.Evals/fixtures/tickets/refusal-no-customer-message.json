@@ -1,0 +1,20 @@
+{
+  "id": 940202,
+  "subject": "Internal follow-up",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Robin Achebe",
+    "email": "robin.achebe@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": true,
+      "isInternalNote": false,
+      "senderName": "Support",
+      "text": "Following up internally on this order."
+    }
+  ]
+}
