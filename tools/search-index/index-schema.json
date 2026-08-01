@@ -1,0 +1,148 @@
+{
+  "name": "{{INDEX_NAME}}",
+  "fields": [
+    {
+      "name": "id",
+      "type": "Edm.String",
+      "key": true,
+      "searchable": false,
+      "filterable": true,
+      "sortable": false,
+      "facetable": false
+    },
+    {
+      "name": "corpus",
+      "type": "Edm.String",
+      "searchable": false,
+      "filterable": true,
+      "facetable": true
+    },
+    {
+      "name": "market",
+      "type": "Edm.String",
+      "searchable": false,
+      "filterable": true,
+      "facetable": true
+    },
+    {
+      "name": "exposure",
+      "type": "Edm.String",
+      "searchable": false,
+      "filterable": true,
+      "facetable": true
+    },
+    {
+      "name": "topic",
+      "type": "Edm.String",
+      "searchable": true,
+      "filterable": true,
+      "facetable": true
+    },
+    {
+      "name": "tags",
+      "type": "Collection(Edm.String)",
+      "searchable": false,
+      "filterable": true,
+      "facetable": true
+    },
+    {
+      "name": "title",
+      "type": "Edm.String",
+      "searchable": true,
+      "filterable": false,
+      "analyzer": "standard.lucene"
+    },
+    {
+      "name": "content",
+      "type": "Edm.String",
+      "searchable": true,
+      "filterable": false,
+      "analyzer": "standard.lucene"
+    },
+    {
+      "name": "contentVector",
+      "type": "Collection(Edm.Single)",
+      "searchable": true,
+      "filterable": false,
+      "sortable": false,
+      "facetable": false,
+      "retrievable": false,
+      "dimensions": 1536,
+      "vectorSearchProfile": "policy-vector-profile"
+    },
+    {
+      "name": "sourcePath",
+      "type": "Edm.String",
+      "searchable": false,
+      "filterable": true
+    },
+    {
+      "name": "sourceVersion",
+      "type": "Edm.String",
+      "searchable": false,
+      "filterable": true
+    },
+    {
+      "name": "effectiveDate",
+      "type": "Edm.DateTimeOffset",
+      "searchable": false,
+      "filterable": true,
+      "sortable": true
+    },
+    {
+      "name": "ticketId",
+      "type": "Edm.String",
+      "searchable": false,
+      "filterable": true
+    },
+    {
+      "name": "resolvedAt",
+      "type": "Edm.DateTimeOffset",
+      "searchable": false,
+      "filterable": true,
+      "sortable": true
+    }
+  ],
+  "vectorSearch": {
+    "algorithms": [
+      {
+        "name": "policy-hnsw",
+        "kind": "hnsw",
+        "hnswParameters": {
+          "m": 4,
+          "efConstruction": 400,
+          "efSearch": 500,
+          "metric": "cosine"
+        }
+      }
+    ],
+    "profiles": [
+      {
+        "name": "policy-vector-profile",
+        "algorithm": "policy-hnsw"
+      }
+    ]
+  },
+  "semantic": {
+    "configurations": [
+      {
+        "name": "policy-semantic",
+        "prioritizedFields": {
+          "titleField": {
+            "fieldName": "title"
+          },
+          "prioritizedContentFields": [
+            {
+              "fieldName": "content"
+            }
+          ],
+          "prioritizedKeywordsFields": [
+            {
+              "fieldName": "topic"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

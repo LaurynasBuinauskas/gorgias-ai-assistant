@@ -23,6 +23,7 @@ What actually exists today, and where it differs from the defaults below.
 | API | `gorgias-assistant-api` → https://gorgias-assistant-api.azurewebsites.net |
 | Panel | `gorgias-assistant-panel` → https://icy-grass-0e781a40f.7.azurestaticapps.net (**East US 2**) |
 | Key Vault | `gorgias-assistant-kv` (Sweden Central) |
+| Search | `gorgias-assistant-search` — **Basic**, Sweden Central, semantic ranking `free` (added 2026-08-01, `R-2`) |
 
 Deviations worth knowing:
 
@@ -238,6 +239,64 @@ Manual install — no Chrome Web Store needed:
 
 To repoint an already-installed build without rebuilding, run this in the extension's
 console: `chrome.storage.local.set({ panelOrigin: '…', apiOrigin: '…' })`.
+
+## 10a. Azure AI Search (`R-2`)
+
+Provisioned 2026-08-01. Basic tier, ~$75/month, co-located with the API in Sweden Central.
+
+```bash
+az search service create --name gorgias-assistant-search --resource-group gorgias-assistant-rg \
+  --location swedencentral --sku Basic --partition-count 1 --replica-count 1 \
+  --auth-options aadOrApiKey --aad-auth-failure-mode http401WithBearerChallenge
+```
+
+`aadOrApiKey` is what lets the API authenticate as its managed identity while the offline
+ingestion pipeline uses a key. The API gets **read-only** data-plane access — `Search Index
+Data Reader` carries no write action at all:
+
+```bash
+az role assignment create --assignee-object-id <api-principal-id> \
+  --assignee-principal-type ServicePrincipal --role "Search Index Data Reader" \
+  --scope "$(az search service show --name gorgias-assistant-search --resource-group gorgias-assistant-rg --query id -o tsv)"
+```
+
+The ingestion credential lives in Key Vault as `search-adminkey`, never in the repo:
+
+```bash
+az keyvault secret set --vault-name gorgias-assistant-kv --name search-adminkey \
+  --value "$(az search admin-key show --service-name gorgias-assistant-search --resource-group gorgias-assistant-rg --query primaryKey -o tsv)"
+```
+
+To rotate it — the tooling reads Key Vault at run time, so nothing else changes:
+
+```bash
+az keyvault secret set --vault-name gorgias-assistant-kv --name search-adminkey --value "$(az search admin-key renew --key-kind primary --service-name gorgias-assistant-search --resource-group gorgias-assistant-rg --query primaryKey -o tsv)"
+```
+
+Do **not** pipe the renew output into `--value @-`. The `@` prefix makes the Azure CLI treat
+the argument as a file to read, so a mistyped or shell-mangled `@-` silently stores the
+contents of whatever file it resolved to as your key. Use the substitution form above.
+
+Index and alias are defined as code in `tools/search-index/`:
+
+```bash
+python tools/search-index/manage.py create --version 1
+python tools/search-index/manage.py smoke
+```
+
+`smoke` uploads one probe document, proves a filtered hybrid query returns it, proves a
+`market eq 'US'` filter excludes a DE document, then deletes the probe.
+
+### Index aliases require a preview api-version
+
+Verified against this service on 2026-08-01: `2024-07-01` and `2023-11-01` both reject the
+`aliases` endpoint, **and both fail to resolve an alias at query time** — `GET
+indexes/knowledge/docs/$count` returns 404 on stable while `indexes/knowledge-v1/...`
+succeeds. Alias operations work only on preview versions (`2024-05-01-preview` and later).
+
+This matters beyond tooling: `launch-plan.md` §9 lever 3 assumes the API reads through the
+alias so that rollback is an alias swap. That is only possible if the API itself talks a
+preview api-version. See `open-questions.md` D-4 — the decision is open.
 
 ## 11. Gotchas
 
