@@ -219,6 +219,7 @@ function onComposerKeydown(event: KeyboardEvent) {
     <div class="title">
       <span class="dot" class:busy></span>
       <span class="brand">AI Assistant</span>
+      <span class="beta">Beta</span>
     </div>
     {#if panel.status !== 'unauthenticated'}
       <span class="ticket">#{panel.context.ticketId}</span>
@@ -359,6 +360,20 @@ function onComposerKeydown(event: KeyboardEvent) {
   .brand {
     font-weight: 600;
     letter-spacing: -0.01em;
+  }
+  /* Permanent, not dismissible: agents should never be unsure whether what they are
+     reading is a suggestion from a system still under evaluation. */
+  .beta {
+    font-size: 0.66rem;
+    font-weight: 600;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    background: #eaf1f8;
+    border: 1px solid #cfe0ef;
+    border-radius: 999px;
+    padding: 0.18rem 0.4rem;
   }
   .dot {
     width: 8px;
