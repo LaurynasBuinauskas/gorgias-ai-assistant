@@ -1,5 +1,6 @@
 using System.Text;
 using Copilot.Domain;
+using Copilot.Knowledge;
 using Microsoft.Extensions.AI;
 
 namespace Copilot.Pipeline;
@@ -36,13 +37,17 @@ public static class DraftPrompt
     public static IReadOnlyList<ChatMessage> Build(
         TicketContext ticket,
         DraftRequest request,
+        RetrievedContext context,
         int maxTranscriptCharacters)
     {
-        List<ChatMessage> messages =
-        [
-            new(ChatRole.System, System),
-            new(ChatRole.User, BuildTranscript(ticket, maxTranscriptCharacters)),
-        ];
+        List<ChatMessage> messages = [new(ChatRole.System, System)];
+
+        if (BuildKnowledge(context) is { Length: > 0 } knowledge)
+        {
+            messages.Add(new ChatMessage(ChatRole.User, knowledge));
+        }
+
+        messages.Add(new ChatMessage(ChatRole.User, BuildTranscript(ticket, maxTranscriptCharacters)));
 
         foreach (var turn in request.Turns)
         {
@@ -56,6 +61,59 @@ public static class DraftPrompt
         }
 
         return messages;
+    }
+
+    /// <summary>
+    /// Retrieved knowledge, with internal guidance in its own block marked do-not-quote.
+    /// The separation is structural rather than a rule the model is asked to remember: nothing
+    /// from <see cref="RetrievedContext.Internal"/> ever enters a quotable block.
+    /// </summary>
+    public static string BuildKnowledge(RetrievedContext context)
+    {
+        if (context.Bypassed)
+        {
+            return "";
+        }
+
+        var builder = new StringBuilder();
+
+        Append(builder, $"<POLICY market=\"{context.Market.Market}\">", context.Policy);
+        Append(builder, "<APPROVED_REPLIES>", context.Templates);
+        Append(builder, "<PAST_RESOLUTIONS>", context.Tickets);
+
+        if (context.Internal.Count > 0)
+        {
+            builder.AppendLine("<INTERNAL_GUIDANCE do-not-quote=\"true\">");
+            builder.AppendLine(
+                "This section explains what happens on our side. Use it to decide what to say. " +
+                "Never quote it, paraphrase it, or refer to it — no internal systems, project " +
+                "names, or admin steps may appear in the reply.");
+            foreach (var chunk in context.Internal)
+            {
+                builder.AppendLine($"- {chunk.Title}: {chunk.Content}");
+            }
+
+            builder.AppendLine("</INTERNAL_GUIDANCE>");
+        }
+
+        return builder.ToString();
+    }
+
+    private static void Append(StringBuilder builder, string tag, IReadOnlyList<KnowledgeChunk> chunks)
+    {
+        if (chunks.Count == 0)
+        {
+            return;
+        }
+
+        var name = tag.Split(' ', '>')[0].TrimStart('<');
+        builder.AppendLine(tag);
+        foreach (var chunk in chunks)
+        {
+            builder.AppendLine($"- {chunk.Title}: {chunk.Content}");
+        }
+
+        builder.AppendLine($"</{name}>");
     }
 
     public static string BuildTranscript(TicketContext ticket, int maxCharacters)

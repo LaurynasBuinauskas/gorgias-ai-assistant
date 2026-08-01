@@ -17,9 +17,17 @@ public static class ServiceCollectionExtensions
                 "Drafting:MaxPromptCharacters must leave room for the transcript and the retrieval allowance.")
             .ValidateOnStart();
 
+        services.AddOptions<RetrievalOptions>()
+            .BindConfiguration(RetrievalOptions.SectionName)
+            .Validate(
+                o => o.MinimumPolicyScore >= 0,
+                "Retrieval:MinimumPolicyScore cannot be negative.")
+            .ValidateOnStart();
+
         // Placeholder until R-6 lands; see GlobalFallbackMarketResolver for why it is not a
         // default worth keeping.
         services.AddSingleton<IMarketResolver, GlobalFallbackMarketResolver>();
+        services.AddSingleton<KnowledgeRetriever>();
         services.AddSingleton<IDraftingPipeline, DraftingPipeline>();
         return services;
     }

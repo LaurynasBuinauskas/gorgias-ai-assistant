@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Copilot.Domain;
+using Copilot.Knowledge;
 using Copilot.Pipeline;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -131,8 +132,27 @@ public sealed class DraftingPipelineTests
         Assert.Null(chatClient.LastMessages);
     }
 
-    private static DraftingPipeline CreatePipeline(IChatClient chatClient, DraftingOptions? options = null) =>
-        new(chatClient, Options.Create(options ?? new DraftingOptions()), NullLogger<DraftingPipeline>.Instance);
+    private static DraftingPipeline CreatePipeline(
+        IChatClient chatClient,
+        DraftingOptions? options = null,
+        IKnowledgeStore? store = null,
+        RetrievalOptions? retrieval = null)
+    {
+        // Default to retrieval switched off so the existing tests keep exercising generation
+        // rather than the gate; the gate has its own tests.
+        var retrievalOptions = retrieval ?? new RetrievalOptions { Enabled = false };
+        var retriever = new KnowledgeRetriever(
+            store ?? new FakeKnowledgeStore(),
+            new GlobalFallbackMarketResolver(),
+            Options.Create(retrievalOptions));
+
+        return new DraftingPipeline(
+            chatClient,
+            retriever,
+            Options.Create(options ?? new DraftingOptions()),
+            Options.Create(retrievalOptions),
+            NullLogger<DraftingPipeline>.Instance);
+    }
 
     private static TicketContext Ticket(params TicketMessage[] messages) => new()
     {
