@@ -90,6 +90,26 @@ only instantaneity.
 Whichever is chosen, `R-10` and the `L-5` runbook must describe *that* mechanism, not the
 alias swap the plan currently assumes.
 
+### D-5 · Is English-only actually required? — `L-1`, `L-2`, `E-4`, `L-6`
+
+**Reopened 2026-08-01.** The plan recorded "the client wants English always" and built three
+tasks on it. That is now on hold: `L-1` is deferred, the translate quick-action stays, and
+the assistant behaves as it does today — English by default, another language on request.
+
+**Ask the client:**
+
+> Do you want drafts to always come back in English, or should agents keep the option to
+> request another language? The panel currently offers a one-tap translate action and we have
+> left it in place.
+
+**Why it needs a real answer rather than drift.** Three things hang off it. `E-4` is a
+release-blocking eval class asserting every draft is English — as written it now tests
+behaviour we are not building. `L-6` promises the client "answers are English only" as part
+of the beta terms. And leaving a translate button that a future `L-1` would contradict is the
+exact confusion the original plan wanted to avoid.
+
+Nothing is blocked while this sits open, but it should not reach go-live undecided.
+
 ### D-3 · Redaction sample signed off — `L-7`, `R-4`
 
 Only applies if ticket exemplars ship. The client chose to redact personal data and retain

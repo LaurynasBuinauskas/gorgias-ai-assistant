@@ -87,19 +87,24 @@ expensive to retrofit.
 | Attachments / vision | P3 |
 | Multi-language output | Client explicitly wants to translate on their own end |
 
-## 4. English-only: a required change, not a config flag
+## 4. English-only — reopened 2026-08-01, currently **not** being implemented
 
-The prompt today says drafts are English **by default** and lets the agent ask for another
-language — and the panel ships a one-tap "Translate to German" action. The client wants
-English always. For beta:
+This section originally required English-only output unconditionally and removal of the
+translate quick-action. **That is on hold.** The decision was reversed pending confirmation
+with the client (`open-questions.md` D-5):
 
-- The language rule becomes unconditional in the system prompt.
-- The translate quick-action is **removed from the panel**, not merely unused. Leaving a
-  button that violates the stated contract invites exactly the confusion beta feedback is
-  meant to surface.
-- A translation request typed by an agent is declined with a short explanation.
+- `L-1` is **deferred**. Drafts remain English by default with translation available on
+  request — today's behaviour, unchanged.
+- The translate quick-action **stays in the panel**.
+- `L-2` is reduced to adding a Beta badge and removes nothing.
 
-Tasks: `L-1`, `L-2`.
+Two consequences worth tracking rather than rediscovering:
+
+- `E-4` (eval class B) was written to assert every draft returns English even when an agent
+  explicitly asks otherwise. That is no longer intended behaviour, so the class needs
+  rewriting or dropping **before** it is built.
+- `L-6` listed "answers are English only" among the things the client agrees to before
+  go-live. That line comes out unless `L-1` is restored.
 
 ## 5. Sequencing, and one honest disagreement
 
@@ -235,7 +240,10 @@ Only 1 and 2 gate the beta.
 
 Independently executable. Each states its dependencies and how completion is verified.
 
-### L-1 — Make English-only unconditional
+### L-1 — Make English-only unconditional *(DEFERRED 2026-08-01 — do not implement)*
+**Status:** on hold pending the client answer in `open-questions.md` D-5. Translation stays
+supported; today's prompt behaviour is unchanged. The specification below is retained for
+when the decision is confirmed.
 **Depends on:** none.
 **Do:** In `Copilot.Pipeline/DraftPrompt.cs`, replace the "English by default … unless the
 agent asks" rule with an unconditional one: always English regardless of customer language;
@@ -245,14 +253,12 @@ translation is out of scope for this release.
 wording; an eval case (`E-8` class "language") submits a German ticket **and** an explicit
 "antworte auf Deutsch" instruction, and both drafts come back in English.
 
-### L-2 — Remove the translate action and label the panel as Beta
-**Depends on:** L-1.
-**Do:** Delete the dynamic "Translate to <language>" quick action from `panel/src/App.svelte`
-and the `languageName`-driven action list; keep the tone actions. Add a small, permanent
-"Beta" badge in the panel header with a tooltip: "Drafts are suggestions — always review
-before sending."
-**Acceptance:** no translate control renders for a non-English ticket; existing panel tests
-still pass; a new test asserts the Beta badge is present in every authenticated state.
+### L-2 — Label the panel as Beta
+**Depends on:** none. **Scope reduced 2026-08-01** — badge only.
+**Do:** Add a small, permanent "Beta" badge to the panel header. Remove nothing: the
+translate quick action and the `languageName`-driven action list stay exactly as they are.
+**Acceptance:** existing panel tests still pass; a new test asserts the Beta badge is present
+in every authenticated state.
 
 ### L-3 — Prove the kill switch works end to end
 **Depends on:** none.
@@ -263,7 +269,10 @@ no panel on a real Gorgias ticket, flip off, confirm it returns. Record the exac
 **Acceptance:** the runbook exists and has been followed once, with the observed result
 noted; toggling requires no code deploy.
 
-### L-4 — In-panel feedback capture
+### L-4 — In-panel feedback capture *(DEFERRED 2026-08-01)*
+**Status:** postponed as late-game polish — answer quality comes first. Revisit before
+go-live: §8 and `L-6` promise the client an in-panel way to report a bad draft, so either
+this ships or that promise is withdrawn.
 **Depends on:** none (independent of retrieval).
 **Do:** Add thumbs-up / thumbs-down to each completed draft, posting to a new
 `POST /v1/telemetry/draft-feedback` endpoint: `{v, ticketId, draftId, verdict, reason?}`.
