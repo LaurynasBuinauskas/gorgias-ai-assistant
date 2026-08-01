@@ -6,6 +6,7 @@ using Copilot.Api.Endpoints;
 using Copilot.Api.Hosting;
 using Copilot.Api.RateLimiting;
 using Copilot.Gorgias;
+using Copilot.Knowledge;
 using Copilot.Pipeline;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,6 +36,7 @@ builder.WebHost.ConfigureKestrel((context, kestrel) =>
 
 builder.Services.AddGorgias();
 builder.Services.AddAi();
+builder.Services.AddKnowledgeStore();
 builder.Services.AddDraftingPipeline();
 builder.Services.AddClientAddressForwarding();
 builder.Services.AddApiProblemDetails();

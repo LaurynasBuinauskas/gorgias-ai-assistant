@@ -145,7 +145,7 @@ human review.
 | `P-3` | Convert the 162 templates | P-2 | done | | 162 files, 11 topics, every one tagged; 10 sampled bodies are exact substrings of the PDF text layer. **60 % are non-English** (14 each in DE/ES/FR/IT/NL/PL/SE) — material evidence for `open-questions.md` D-5 |
 | `P-4` | Convert internal procedure, marked internal | P-2 | done | | 6 files, all `exposure: internal`; containment check passes over 261 customer-facing files. **Corrected the Class A banned vocabulary** — `REPAIR1` and `warehouse` appear in approved customer templates |
 | `P-5` | Content validator | P-2 | todo | | Python, shared by CI + ingestion |
-| `R-5` | `IKnowledgeStore` over Azure AI Search | R-2 | todo | | |
+| `R-5` | `IKnowledgeStore` over Azure AI Search | R-2 | done | | Hybrid + semantic over the live index. 6 integration tests cover market filter, exposure filter, internal reachability, empty market, empty query. Removing the market predicate makes `NeverReturnsAnotherMarketsPolicy` fail, so the check is real. A reflection test asserts no Azure/OpenAI type reaches the contract |
 | `R-4` | Extraction and redaction of closed tickets | R-1, R-2 | todo | | Fail-closed redaction check |
 | `P-6` | Wire validation into CI | P-5, P-1 | todo | | |
 | `P-7` | Manifest generation for provenance | P-5 | todo | | |

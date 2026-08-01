@@ -21,6 +21,10 @@ public static class ServiceCollectionExtensions
             .Validate(
                 o => !string.IsNullOrWhiteSpace(o.DraftingModel),
                 "OpenAi:DraftingModel is not configured (pin a dated model snapshot in appsettings.json).")
+            .Validate(
+                o => !string.IsNullOrWhiteSpace(o.EmbeddingModel),
+                "OpenAi:EmbeddingModel is not configured. It must match the model the index was "
+                + "built with — a mismatch produces vectors that silently retrieve nothing useful.")
             .ValidateOnStart();
 
         services.AddSingleton<IChatClient>(provider =>
@@ -29,6 +33,14 @@ public static class ServiceCollectionExtensions
             return new OpenAIClient(options.ApiKey)
                 .GetChatClient(options.DraftingModel)
                 .AsIChatClient();
+        });
+
+        services.AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(provider =>
+        {
+            var options = provider.GetRequiredService<IOptions<AiOptions>>().Value;
+            return new OpenAIClient(options.ApiKey)
+                .GetEmbeddingClient(options.EmbeddingModel)
+                .AsIEmbeddingGenerator(options.EmbeddingDimensions);
         });
 
         return services;
