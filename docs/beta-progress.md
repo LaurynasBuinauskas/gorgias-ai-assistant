@@ -91,7 +91,7 @@ everything up to and including `R-5` is reachable now and the last two steps are
 | `P-2` | Knowledge layout and front-matter schema | — | todo | | |
 | `R-2` | Provision Azure AI Search and define the index | — | done | | Basic, Sweden Central. `knowledge-v1` behind alias `knowledge`; smoke proves filtered hybrid retrieval and market exclusion. **Aliases need a preview api-version — see `open-questions.md` D-4** |
 | `R-1` | Research ticket extraction path | — | todo | | Timeboxed half a day, read-only |
-| `L-2` | Label the panel Beta | — | todo | | **Scope reduced 2026-08-01:** badge only. Translate action stays, so the `L-1` dependency is gone |
+| `L-2` | Label the panel Beta | — | done | `59dc9d0` | Badge sits outside every conditional, so it renders in all states. Verified on the deployed panel: renders, CSP `frame-ancestors` intact. Authenticated states not exercised in a browser — entering the API token into a form is not something the agent does |
 | `L-4` | In-panel feedback capture | — | **deferred** | | Postponed 2026-08-01 as late-game polish. Answer quality comes first; revisit before go-live since `L-6` promises a way to report a bad draft |
 | `P-1` | Obtain authoritative policy markdown | — | in progress | | Fallback executed: 99 files reconstructed from the PDF, verified against its manifest. **Outstanding: human spot-check of one file per market (14)** |
 | `P-3` | Convert the 162 templates | P-2 | todo | | Bodies verbatim |
