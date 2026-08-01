@@ -101,7 +101,7 @@ everything up to and including `R-5` is reachable now and the last two steps are
 | `R-4` | Extraction and redaction of closed tickets | R-1, R-2 | todo | | Fail-closed redaction check |
 | `P-6` | Wire validation into CI | P-5, P-1 | todo | | |
 | `P-7` | Manifest generation for provenance | P-5 | todo | | |
-| `R-3` | Offline ingestion for policy/templates/internal | P-2, R-2 (+ content) | todo | | |
+| `R-3` | Offline ingestion for policy/templates/internal | P-2, R-2 | done | | **400 chunks live in `knowledge-v1`** (224 policy, 162 template, 14 internal). All 14 markets present; DE-filtered query returns only DE; customer-filtered query returns no internal content; second run embeds and writes nothing |
 | `R-6` | Deterministic market resolution | client | blocked | | See table above |
 | `R-7` | Retrieval step and relevance gate | R-5, R-6 | todo | | |
 | `R-8` | Grounded prompt with citations | R-7, L-1 | todo | | |
@@ -142,4 +142,5 @@ Append here whenever a task resolves a question or changes a planning document.
 | 2026-08-01 | Template corpus is 60 % non-English — the team maintains approved replies in seven languages. Cuts against the recorded "client wants English always" premise; under English-only, 98 of 162 templates become unusable as customer-facing retrieval targets | investigation |
 | 2026-08-01 | Class A (internal leakage) banned vocabulary was wrong. `REPAIR1` is handed to customers in five approved templates and `warehouse` is ordinary customer language; banning them would fail drafts for reproducing approved wording on a class that blocks release at 100 %. Corrected to `Asana`, `Shopify`, `CS: RETURNS`, `Odoo`, `kokybe` | investigation |
 | 2026-08-01 | Topic vocabularies are per corpus, not global. Policy organises by published page, templates by support category, internal by procedure — one shared list would invent mappings nobody uses | investigation |
+| 2026-08-01 | One chunk per heading retrieves badly — policy is full of two-line clauses, giving ~124-token chunks with too little context to interpret. Packing consecutive sections to the 500-800 token target cut policy chunks from 902 to 224 and raised the median to ~556 tokens | investigation |
 | 2026-08-01 | **Priority set explicitly: answer quality first.** Policy grounding, retrieval over completed tickets, and better answers outrank launch polish. The plan's task order is re-sequenced around that | user |

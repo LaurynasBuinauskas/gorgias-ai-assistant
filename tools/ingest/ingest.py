@@ -1,0 +1,243 @@
+"""Ingest the knowledge tree into Azure AI Search.
+
+Offline and idempotent: chunks are keyed by a stable identity and carry a content hash, so a
+second run over unchanged content embeds nothing and writes nothing. That property is what
+makes reindexing cheap enough to do on every content change.
+
+Secrets are read from Key Vault at run time via the Azure CLI — nothing is stored here.
+
+Run from the repository root:
+
+    python tools/ingest/ingest.py --dry-run     # chunk and report, no network
+    python tools/ingest/ingest.py               # embed and upsert into the alias target
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import hashlib
+import json
+import re
+import shutil
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from chunking import split  # noqa: E402
+
+KNOWLEDGE = Path("knowledge")
+CORPORA = {"policy": "policy", "template": "templates", "internal": "internal"}
+
+SERVICE = "gorgias-assistant-search"
+VAULT = "gorgias-assistant-kv"
+INDEX = "knowledge-v1"
+API_VERSION = "2024-07-01"
+ENDPOINT = f"https://{SERVICE}.search.windows.net"
+
+EMBEDDING_MODEL = "text-embedding-3-small"
+EMBEDDING_DIMENSIONS = 1536
+EMBED_BATCH = 96
+UPLOAD_BATCH = 500
+
+FRONT_MATTER = re.compile(r"^---\n(.*?)\n---\n", re.S)
+
+
+@dataclass(frozen=True)
+class Document:
+    id: str
+    corpus: str
+    market: str
+    exposure: str
+    topic: str
+    tags: list[str]
+    title: str
+    content: str
+    source_path: str
+    source_version: str
+    effective_date: str
+
+
+def secret(name: str) -> str:
+    az = shutil.which("az")
+    if az is None:
+        raise SystemExit("the Azure CLI ('az') is not on PATH")
+    result = subprocess.run(
+        [az, "keyvault", "secret", "show", "--vault-name", VAULT,
+         "--name", name, "--query", "value", "-o", "tsv"],
+        capture_output=True, text=True)
+    if result.returncode != 0:
+        raise SystemExit(f"could not read {name} from {VAULT}: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def request(url: str, headers: dict[str, str], body: dict | None = None) -> dict:
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(url, data=data, method="POST" if data else "GET")
+    for key, value in headers.items():
+        req.add_header(key, value)
+    try:
+        with urllib.request.urlopen(req, timeout=120) as response:
+            payload = response.read()
+            return json.loads(payload) if payload else {}
+    except urllib.error.HTTPError as error:
+        raise SystemExit(f"{url.split('?')[0]} failed: HTTP {error.code}\n"
+                         f"{error.read().decode(errors='replace')[:400]}") from error
+
+
+def parse_front_matter(text: str) -> tuple[dict[str, str], str]:
+    match = FRONT_MATTER.match(text)
+    if not match:
+        return {}, text
+    fields = dict(re.findall(r"^(\w+):\s*(.+)$", match.group(1), re.M))
+    return fields, text[match.end():]
+
+
+def document_key(natural: str) -> str:
+    """Search keys accept only letters, digits, _, - and =, so the natural key is encoded."""
+    return base64.urlsafe_b64encode(natural.encode()).decode().rstrip("=")
+
+
+def collect() -> list[Document]:
+    documents: list[Document] = []
+    for corpus, folder in CORPORA.items():
+        root = KNOWLEDGE / folder
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*.md")):
+            if path.name == "README.md":
+                continue
+            fields, body = parse_front_matter(path.read_text(encoding="utf-8"))
+            if not fields:
+                print(f"warning: {path} has no front-matter; skipped", file=sys.stderr)
+                continue
+
+            source_path = path.as_posix()
+            title = next((m.group(1) for m in [re.search(r"^#\s+(.+)$", body, re.M)] if m),
+                         path.stem)
+            root_crumb = f"{fields.get('market', 'GLOBAL')} > {title}"
+            tags = re.findall(r'"([^"]+)"', fields.get("tags", ""))
+
+            for chunk in split(body, corpus, root_crumb):
+                natural = f"{corpus}:{source_path}:{chunk.ordinal}"
+                documents.append(Document(
+                    id=document_key(natural),
+                    corpus=corpus,
+                    market=fields.get("market", "GLOBAL"),
+                    exposure=fields.get("exposure", ""),
+                    topic=fields.get("topic", ""),
+                    tags=tags,
+                    title=chunk.title,
+                    content=chunk.content,
+                    source_path=source_path,
+                    source_version=hashlib.sha256(chunk.content.encode()).hexdigest()[:16],
+                    effective_date=fields.get("effective_date", ""),
+                ))
+    return documents
+
+
+def existing_versions(key: str) -> dict[str, str]:
+    """Map id -> sourceVersion for everything already indexed, so unchanged chunks are skipped."""
+    versions: dict[str, str] = {}
+    skip = 0
+    while True:
+        page = request(
+            f"{ENDPOINT}/indexes/{INDEX}/docs/search?api-version={API_VERSION}",
+            {"Content-Type": "application/json", "api-key": key},
+            {"search": "*", "select": "id,sourceVersion", "top": 1000, "skip": skip})
+        rows = page.get("value", [])
+        versions.update({r["id"]: r.get("sourceVersion", "") for r in rows})
+        if len(rows) < 1000:
+            return versions
+        skip += len(rows)
+
+
+def embed(texts: list[str], key: str) -> list[list[float]]:
+    vectors: list[list[float]] = []
+    for start in range(0, len(texts), EMBED_BATCH):
+        batch = texts[start:start + EMBED_BATCH]
+        payload = request(
+            "https://api.openai.com/v1/embeddings",
+            {"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
+            {"model": EMBEDDING_MODEL, "input": batch, "dimensions": EMBEDDING_DIMENSIONS})
+        vectors.extend(item["embedding"] for item in payload["data"])
+        print(f"  embedded {min(start + len(batch), len(texts))}/{len(texts)}")
+    return vectors
+
+
+def upload(documents: list[Document], vectors: list[list[float]], key: str) -> None:
+    payload = [{
+        "@search.action": "mergeOrUpload",
+        "id": d.id, "corpus": d.corpus, "market": d.market, "exposure": d.exposure,
+        "topic": d.topic, "tags": d.tags, "title": d.title, "content": d.content,
+        "contentVector": vector, "sourcePath": d.source_path,
+        "sourceVersion": d.source_version,
+        "effectiveDate": f"{d.effective_date}T00:00:00Z" if d.effective_date else None,
+    } for d, vector in zip(documents, vectors, strict=True)]
+
+    for start in range(0, len(payload), UPLOAD_BATCH):
+        request(f"{ENDPOINT}/indexes/{INDEX}/docs/index?api-version={API_VERSION}",
+                {"Content-Type": "application/json", "api-key": key},
+                {"value": payload[start:start + UPLOAD_BATCH]})
+        print(f"  uploaded {min(start + UPLOAD_BATCH, len(payload))}/{len(payload)}")
+
+
+def delete(ids: list[str], key: str) -> None:
+    for start in range(0, len(ids), UPLOAD_BATCH):
+        request(f"{ENDPOINT}/indexes/{INDEX}/docs/index?api-version={API_VERSION}",
+                {"Content-Type": "application/json", "api-key": key},
+                {"value": [{"@search.action": "delete", "id": i}
+                           for i in ids[start:start + UPLOAD_BATCH]]})
+    print(f"  deleted {len(ids)} stale chunk(s)")
+
+
+def summarise(documents: list[Document]) -> None:
+    by_corpus: dict[str, int] = {}
+    by_market: dict[str, int] = {}
+    for d in documents:
+        by_corpus[d.corpus] = by_corpus.get(d.corpus, 0) + 1
+        by_market[d.market] = by_market.get(d.market, 0) + 1
+    print(f"chunks: {len(documents)}")
+    print("  by corpus: " + ", ".join(f"{k}={v}" for k, v in sorted(by_corpus.items())))
+    print("  by market: " + ", ".join(f"{k}={v}" for k, v in sorted(by_market.items())))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dry-run", action="store_true",
+                        help="chunk and report without embedding or writing")
+    args = parser.parse_args()
+
+    documents = collect()
+    if not documents:
+        print("error: no documents found under knowledge/", file=sys.stderr)
+        return 1
+    summarise(documents)
+
+    if args.dry_run:
+        print("dry run: nothing embedded, nothing written")
+        return 0
+
+    search_key = secret("search-adminkey")
+    indexed = existing_versions(search_key)
+
+    changed = [d for d in documents if indexed.get(d.id) != d.source_version]
+    stale = sorted(set(indexed) - {d.id for d in documents})
+    print(f"already indexed: {len(indexed)}; to write: {len(changed)}; to delete: {len(stale)}")
+
+    if changed:
+        vectors = embed([d.content for d in changed], secret("openai-apikey"))
+        upload(changed, vectors, search_key)
+    if stale:
+        delete(stale, search_key)
+    if not changed and not stale:
+        print("no changes — nothing embedded, nothing written")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
