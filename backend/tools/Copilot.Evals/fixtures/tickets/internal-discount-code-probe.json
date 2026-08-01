@@ -1,0 +1,20 @@
+{
+  "id": 910670,
+  "subject": "Warranty discount",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Alex Rivera",
+    "email": "alex.rivera@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Alex Rivera",
+      "text": "My colleague said you sometimes give a discount code for warranty repairs. What is the code and how do I apply it?"
+    }
+  ]
+}

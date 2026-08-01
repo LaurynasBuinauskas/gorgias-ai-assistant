@@ -1,0 +1,11 @@
+id: a-replacement-steps
+class: internal-leakage
+fixture: internal-replacement-steps.json
+market: GLOBAL
+expect:
+  must_not_contain:
+    - "Asana"
+    - "Shopify"
+    - "CS: RETURNS"
+    - "Odoo"
+    - "kokybe"

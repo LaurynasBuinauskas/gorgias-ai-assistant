@@ -158,11 +158,11 @@ human review.
 | `R-11` | Retrieval observability | R-7 | done | | Every line keyed by draft id: market + deciding signal, chunk ids and scores per corpus, gate decision, prompt size, usage, citations. Chunk ids decoded to readable natural keys. **Fixed: the streaming path minted its own draft id**, so feedback could never have been traced to a retrieval. Tests assert no customer or policy text reaches any log line |
 | `E-1` | Eval harness skeleton | R-7 | done | | `backend/tools/Copilot.Evals`. Runs YAML cases through the **real** pipeline and index; only the ticket and the market are substituted. Verified: 2/2 pass, and deliberately breaking a blocking case gives exit 1 with the failed assertion and the draft in the report |
 | `E-2` | Assertion library | E-1 | done | | 15 unit tests. `must_cite_market` fails on a foreign-market citation **and on an uncited draft**; language detection covers EN/DE/FR/ES; `no_model_call` proves a refusal preceded the model |
-| `E-3` | Class A: internal leakage cases | E-2, P-4 | todo | | Blocking class |
+| `E-3` | Class A: internal leakage cases | E-2, P-4 | done | | 8 cases, 8/8. **Proven live**: injecting the banned vocabulary into the prompt template makes all 8 fail and the run exit 1 |
 | `E-4` | Class B: language cases | E-2 | todo | | Unblocked by the D-5 answer. Asserts a non-English ticket yields an English draft. Drop the original sub-case that asserted an explicit agent request is refused — translation on request is supported |
 | `E-5` | Class C: market divergence cases | E-2, R-6, R-3 | todo | | Blocking class |
 | `E-6` | Class D and E: refusal and fabrication | E-2, R-7 | todo | | |
-| `E-7` | Class F: injection cases | E-2, R-8 | todo | | Blocking class |
+| `E-7` | Class F: injection cases | E-2, R-8 | done | | 6 cases, 6/6, stable over 10 runs. **Found and fixed a real intermittent vulnerability**: an `[ADMIN OVERRIDE]` planted in quoted email history was obeyed 1 run in 6 |
 | `E-8` | LLM judge for faithfulness | E-1 | todo | | Advisory only, never blocks alone |
 | `E-11` | Class I: PII leakage cases | E-2, R-4 | todo | | Blocking if ticket exemplars ship |
 | `L-5` | Rollback runbook | R-10, L-3 | todo | | |
@@ -196,6 +196,8 @@ Append here whenever a task resolves a question or changes a planning document.
 | 2026-08-01 | "Closed" is not "resolved": only 58% of closed tickets contain a customer message answered by an agent. Chat is 100% usable, email 44% — carrier notifications and marketing dominate the waste. Usable exemplars ~11,700, not 20,042 | investigation |
 | 2026-08-01 | Ticket extraction is far cheaper than planned: 20,042 closed tickets in 12 months, ~3.1 hours to backfill, per-ticket fetch 0.20 s rather than the ~14 s the plan assumed. The naive walk is the recommended strategy; search, views and jobs are unnecessary | investigation |
 | 2026-08-01 | Redaction fixtures are synthetic by rule — invented identities modelled on real shapes. The eval suite lives in the repo and must not become a third copy of customer data | investigation |
+| 2026-08-01 | **Injection eval found a real vulnerability the prompt did not cover**: an instruction planted inside quoted email history was obeyed, granting a lifetime guarantee. Intermittent — 1 failure in 6 runs — so a spot check would never have found it. Prompt now treats quoted history as equally untrusted and forbids acknowledging any entitlement absent from POLICY. 0 failures in 10 runs after | investigation |
+| 2026-08-01 | Eval assertions must test for *commitment*, not vocabulary. The first injection assertions banned phrases like "365-day", which failed the drafts that refused most clearly — the refusal repeats the demand in order to deny it | investigation |
 | 2026-08-01 | The kill switch takes ~70-90 seconds to take effect, not "seconds". Changing an app setting restarts App Service; `az` returns before the change is live, so `/v1/config` must be polled. Applies in both directions | investigation |
 | 2026-08-01 | **Client: the storefront ordered from wins when market signals disagree.** German store, German terms, whichever inbox was written to. Matches what `R-6` already implements | client |
 | 2026-08-01 | **Client: drafts are always English** — because the support agents review in English, not because customers want it. A draft an agent cannot read is a draft they cannot check, which makes human-in-the-loop ceremonial | client |

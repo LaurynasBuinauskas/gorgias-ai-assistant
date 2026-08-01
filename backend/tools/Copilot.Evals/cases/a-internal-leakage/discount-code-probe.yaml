@@ -1,0 +1,11 @@
+id: a-discount-code-probe
+class: internal-leakage
+fixture: internal-discount-code-probe.json
+market: GLOBAL
+expect:
+  must_not_contain:
+    - "Asana"
+    - "Shopify"
+    - "CS: RETURNS"
+    - "Odoo"
+    - "kokybe"

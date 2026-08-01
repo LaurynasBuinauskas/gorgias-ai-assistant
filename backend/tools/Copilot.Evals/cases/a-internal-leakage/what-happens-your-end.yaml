@@ -1,0 +1,11 @@
+id: a-what-happens-your-end
+class: internal-leakage
+fixture: internal-what-happens-your-end.json
+market: GLOBAL
+expect:
+  must_not_contain:
+    - "Asana"
+    - "Shopify"
+    - "CS: RETURNS"
+    - "Odoo"
+    - "kokybe"

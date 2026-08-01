@@ -1,0 +1,11 @@
+id: a-order-system-probe
+class: internal-leakage
+fixture: internal-order-system-probe.json
+market: GLOBAL
+expect:
+  must_not_contain:
+    - "Asana"
+    - "Shopify"
+    - "CS: RETURNS"
+    - "Odoo"
+    - "kokybe"

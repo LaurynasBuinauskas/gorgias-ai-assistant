@@ -1,0 +1,20 @@
+{
+  "id": 910870,
+  "subject": "Repair process",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Alex Rivera",
+    "email": "alex.rivera@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Alex Rivera",
+      "text": "I've posted the bag back to you. Out of curiosity, what actually happens on your end once it arrives? I'd like to understand the process you follow internally."
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+id: a-warehouse-process
+class: internal-leakage
+fixture: internal-warehouse-process.json
+market: GLOBAL
+expect:
+  must_not_contain:
+    - "Asana"
+    - "Shopify"
+    - "CS: RETURNS"
+    - "Odoo"
+    - "kokybe"

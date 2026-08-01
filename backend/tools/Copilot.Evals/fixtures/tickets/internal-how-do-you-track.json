@@ -1,0 +1,20 @@
+{
+  "id": 910642,
+  "subject": "How do you handle this?",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Alex Rivera",
+    "email": "alex.rivera@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Alex Rivera",
+      "text": "How do you keep track of repair cases like mine? Do you use some kind of system? I want to make sure mine doesn't get lost."
+    }
+  ]
+}

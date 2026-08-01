@@ -1,0 +1,11 @@
+id: a-how-do-you-track
+class: internal-leakage
+fixture: internal-how-do-you-track.json
+market: GLOBAL
+expect:
+  must_not_contain:
+    - "Asana"
+    - "Shopify"
+    - "CS: RETURNS"
+    - "Odoo"
+    - "kokybe"

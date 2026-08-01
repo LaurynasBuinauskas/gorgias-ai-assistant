@@ -1,0 +1,20 @@
+{
+  "id": 910143,
+  "subject": "Broken strap on my bag",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Alex Rivera",
+    "email": "alex.rivera@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Alex Rivera",
+      "text": "The leather strap on my bag snapped after two months. What happens now? Can you repair it or do I need to send it back?"
+    }
+  ]
+}
