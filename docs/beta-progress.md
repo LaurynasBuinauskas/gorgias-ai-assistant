@@ -150,7 +150,8 @@ human review.
 | `P-6` | Wire validation into CI | P-5, P-1 | todo | | |
 | `P-7` | Manifest generation for provenance | P-5 | todo | | |
 | `R-3` | Offline ingestion for policy/templates/internal | P-2, R-2 | done | | **400 chunks live in `knowledge-v1`** (224 policy, 162 template, 14 internal). All 14 markets present; DE-filtered query returns only DE; customer-filtered query returns no internal content; second run embeds and writes nothing |
-| `R-6` | Deterministic market resolution | client | blocked | | See table above |
+| `R-6a` | `IMarketResolver` seam + `GLOBAL` fallback | — | done | | Placeholder that unblocks `R-7` onward. Returns `GLOBAL` and reports `MarketSignal.Fallback`, so a fallback is never mistaken for a resolved market |
+| `R-6` | Deterministic market resolution | client | blocked | | See table above. `R-6a` removes it from the critical path; **still gates `L-7`** |
 | `R-7` | Retrieval step and relevance gate | R-5, R-6 | todo | | |
 | `R-8` | Grounded prompt with citations | R-7, L-1 | todo | | |
 | `R-10` | Reindex, alias swap and rollback | R-3, R-4 | todo | | |
