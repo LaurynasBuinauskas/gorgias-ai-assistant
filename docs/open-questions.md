@@ -14,7 +14,7 @@ Last reviewed: 2026-08-01.
 
 ## 1. Blocking
 
-### B-1 · How is a ticket's market determined? — `R-6`
+### B-1 · Which storefront's terms apply when signals disagree? — `R-6` *(narrowed 2026-08-01)*
 
 **Ask the client:**
 

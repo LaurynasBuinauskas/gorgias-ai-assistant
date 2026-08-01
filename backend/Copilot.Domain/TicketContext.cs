@@ -20,6 +20,12 @@ public sealed record TicketContext
 
     public TicketCustomer? Customer { get; init; }
 
+    /// <summary>
+    /// Evidence about which storefront this ticket concerns. Extracted from the payload but
+    /// kept out of the prompt — it decides which policy is retrieved, not what is said.
+    /// </summary>
+    public MarketSignals MarketSignals { get; init; } = MarketSignals.None;
+
     /// <summary>Conversation ordered oldest to newest.</summary>
     public required IReadOnlyList<TicketMessage> Messages { get; init; }
 }

@@ -22,7 +22,51 @@ public static class GorgiasTicketMapper
             Channel = ticket.Channel,
             Language = ticket.Language,
             Customer = customer is null ? null : new TicketCustomer(customer.Name, customer.Email),
+            MarketSignals = CollectMarketSignals(ticket),
             Messages = messages,
+        };
+    }
+
+    /// <summary>
+    /// Gathers the three market signals. The heavy integrations blob is otherwise discarded,
+    /// so only the order URLs are lifted out of it — the rest stays unread.
+    /// </summary>
+    private static MarketSignals CollectMarketSignals(GorgiasTicketDto ticket)
+    {
+        var orderUrls = new[] { ticket.Customer, ticket.Requester }
+            .Where(user => user is not null)
+            .SelectMany(user => user!.Integrations?.Values ?? [])
+            .SelectMany(integration => integration.Orders ?? [])
+            .SelectMany(order => new[] { order.OrderStatusUrl, order.ReferringSite })
+            .OfType<string>()
+            .Where(url => url.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var messages = ticket.Messages ?? [];
+
+        var chatPages = messages
+            .Select(message => message.Meta?.CurrentPage)
+            .OfType<string>()
+            .Where(page => page.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Inbound only: where we replied from says nothing about which shop the customer used.
+        var inboxes = messages
+            .Where(message => !message.FromAgent)
+            .SelectMany(message => message.Source?.To ?? [])
+            .Select(address => address.Address)
+            .OfType<string>()
+            .Where(address => address.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new MarketSignals
+        {
+            OrderUrls = orderUrls,
+            ChatPages = chatPages,
+            SupportInboxes = inboxes,
         };
     }
 
