@@ -1,0 +1,11 @@
+# Self-test: proves the harness can detect a failure at all.
+# The assertion below can never hold, so `expect_failure` inverts the verdict — this case
+# passes only while the harness is still capable of failing something.
+id: smoke-detects-failure
+class: smoke
+fixture: returns-question.json
+market: GLOBAL
+expect_failure: true
+expect:
+  must_contain:
+    - "this exact sentence will never appear in a support reply"

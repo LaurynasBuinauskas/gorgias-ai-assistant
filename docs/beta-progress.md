@@ -156,7 +156,7 @@ human review.
 | `R-8` | Grounded prompt with citations | R-7 | done | | Fenced labelled blocks; ticket marked untrusted; internal fenced do-not-quote **and excluded from citable labels**. Citations split off the reply body so the agent copies clean text. Verified on a real returns ticket: cited `GLOBAL/shipping-and-returns.md`. **Relevance-gate threshold lowered to a floor — see `open-questions.md` D-6** |
 | `R-10` | Reindex, alias swap and rollback | R-3, R-4 | todo | | |
 | `R-11` | Retrieval observability | R-7 | done | | Every line keyed by draft id: market + deciding signal, chunk ids and scores per corpus, gate decision, prompt size, usage, citations. Chunk ids decoded to readable natural keys. **Fixed: the streaming path minted its own draft id**, so feedback could never have been traced to a retrieval. Tests assert no customer or policy text reaches any log line |
-| `E-1` | Eval harness skeleton | R-7 | todo | | `tools/Copilot.Evals` |
+| `E-1` | Eval harness skeleton | R-7 | done | | `backend/tools/Copilot.Evals`. Runs YAML cases through the **real** pipeline and index; only the ticket and the market are substituted. Verified: 2/2 pass, and deliberately breaking a blocking case gives exit 1 with the failed assertion and the draft in the report |
 | `E-2` | Assertion library | E-1 | todo | | |
 | `E-3` | Class A: internal leakage cases | E-2, P-4 | todo | | Blocking class |
 | `E-4` | Class B: language cases | E-2 | todo | | **Needs rewriting before it is built.** It asserts every draft returns English even when an agent asks otherwise — no longer the intended behaviour now `L-1` is deferred |

@@ -1,0 +1,8 @@
+id: smoke-pass
+class: smoke
+fixture: returns-question.json
+market: GLOBAL
+expect:
+  must_not_be: insufficient_data
+  min_citations: 1
+  language: en

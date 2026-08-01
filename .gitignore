@@ -437,3 +437,7 @@ FodyWeavers.xsd
 
 # Claude Code personal settings — machine-local, never committed
 .claude/settings.local.json
+
+# Eval reports are run artefacts, not source
+eval-report.md
+backend/tools/Copilot.Evals/eval-report.md

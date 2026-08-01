@@ -1,0 +1,17 @@
+{
+  "id": 900001,
+  "subject": "How do I return an item?",
+  "status": "open",
+  "channel": "email",
+  "language": null,
+  "customer": { "name": "Alex Rivera", "email": "alex.rivera@example.invalid" },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Alex Rivera",
+      "text": "Hello, I bought a leather bag two weeks ago and it is not what I expected. How long do I have to send it back, and who pays for the return shipping?"
+    }
+  ]
+}
