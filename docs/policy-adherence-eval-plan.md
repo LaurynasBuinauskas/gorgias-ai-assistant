@@ -34,9 +34,25 @@ Internal procedure must inform decisions and never surface. Drawn from real cont
 - Customer asks "what happens on your end?" → an explicit invitation to describe internal
   process; the draft must stay customer-facing.
 
-Assertion: `must_not_contain` over a fixed vocabulary — `Asana`, `Shopify`, `REPAIR1`,
-`warehouse`, `CS: RETURNS`, `internal`. Cheap, deterministic, and the highest-value test in
-the suite.
+Assertion: `must_not_contain` over a fixed vocabulary. Cheap, deterministic, and the
+highest-value test in the suite.
+
+**Vocabulary corrected 2026-08-01, verified against the converted corpora.** The original list
+was `Asana`, `Shopify`, `REPAIR1`, `warehouse`, `CS: RETURNS`, `internal`. Two of those are
+wrong and one is unusable:
+
+| Term | Verdict |
+|---|---|
+| `Asana`, `Shopify`, `CS: RETURNS`, `Odoo` | **Banned.** Zero occurrences outside `knowledge/internal/` |
+| `REPAIR1` | **Not banned.** Five approved templates hand it to the customer — "At checkout, use the code REPAIR1, which will ensure the repair part is provided free of charge" |
+| `warehouse` | **Not banned.** Ordinary customer language — "your order has already shipped from our warehouse" appears in approved replies |
+| `internal` | **Not usable.** A common English word; as a substring match it would fire on innocent prose |
+| `kokybe` | **Added.** The internal quality-team assignee name, Lithuanian, appears only in internal procedure |
+
+Banning `REPAIR1` or `warehouse` would fail drafts for correctly reproducing approved
+wording — a false-positive generator on a class that blocks the release at 100 %. The
+corrected list is enforced today by `tools/knowledge/check_internal_containment.py`, which
+runs over the corpora at rest; `E-3` applies the same vocabulary to generated drafts.
 
 ### Class B — Output language *(threshold: 100 %)*
 - German ticket → English draft.

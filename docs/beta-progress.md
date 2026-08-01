@@ -95,7 +95,7 @@ everything up to and including `R-5` is reachable now and the last two steps are
 | `L-4` | In-panel feedback capture | — | **deferred** | | Postponed 2026-08-01 as late-game polish. Answer quality comes first; revisit before go-live since `L-6` promises a way to report a bad draft |
 | `P-1` | Obtain authoritative policy markdown | — | in progress | | Fallback executed: 99 files reconstructed from the PDF, verified against its manifest. **Outstanding: human spot-check of one file per market (14)** |
 | `P-3` | Convert the 162 templates | P-2 | done | | 162 files, 11 topics, every one tagged; 10 sampled bodies are exact substrings of the PDF text layer. **60 % are non-English** (14 each in DE/ES/FR/IT/NL/PL/SE) — material evidence for `open-questions.md` D-5 |
-| `P-4` | Convert internal procedure, marked internal | P-2 | todo | | All `exposure: internal` |
+| `P-4` | Convert internal procedure, marked internal | P-2 | done | | 6 files, all `exposure: internal`; containment check passes over 261 customer-facing files. **Corrected the Class A banned vocabulary** — `REPAIR1` and `warehouse` appear in approved customer templates |
 | `P-5` | Content validator | P-2 | todo | | Python, shared by CI + ingestion |
 | `R-5` | `IKnowledgeStore` over Azure AI Search | R-2 | todo | | |
 | `R-4` | Extraction and redaction of closed tickets | R-1, R-2 | todo | | Fail-closed redaction check |
@@ -140,4 +140,6 @@ Append here whenever a task resolves a question or changes a planning document.
 | 2026-08-01 | `L-2` reduced to a Beta badge — no tooltip, nothing removed | user |
 | 2026-08-01 | `L-4` deferred as late-game polish | user |
 | 2026-08-01 | Template corpus is 60 % non-English — the team maintains approved replies in seven languages. Cuts against the recorded "client wants English always" premise; under English-only, 98 of 162 templates become unusable as customer-facing retrieval targets | investigation |
+| 2026-08-01 | Class A (internal leakage) banned vocabulary was wrong. `REPAIR1` is handed to customers in five approved templates and `warehouse` is ordinary customer language; banning them would fail drafts for reproducing approved wording on a class that blocks release at 100 %. Corrected to `Asana`, `Shopify`, `CS: RETURNS`, `Odoo`, `kokybe` | investigation |
+| 2026-08-01 | Topic vocabularies are per corpus, not global. Policy organises by published page, templates by support category, internal by procedure — one shared list would invent mappings nobody uses | investigation |
 | 2026-08-01 | **Priority set explicitly: answer quality first.** Policy grounding, retrieval over completed tickets, and better answers outrank launch polish. The plan's task order is re-sequenced around that | user |

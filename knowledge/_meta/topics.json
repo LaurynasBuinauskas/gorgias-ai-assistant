@@ -1,45 +1,119 @@
 {
-  "$comment": "The valid topic slugs. Generated from knowledge/policy/ by tools/knowledge/generate_meta.py \u2014 edit the corpus, not this file.",
-  "topics": [
-    {
-      "slug": "cookies-policy",
-      "title": "Cookies Policy"
-    },
-    {
-      "slug": "faqs",
-      "title": "FAQs"
-    },
-    {
-      "slug": "impressum",
-      "title": "Impressum"
-    },
-    {
-      "slug": "international",
-      "title": "International"
-    },
-    {
-      "slug": "personalization",
-      "title": "Personalization"
-    },
-    {
-      "slug": "privacy-policy",
-      "title": "Privacy Policy"
-    },
-    {
-      "slug": "shipping-and-returns",
-      "title": "Shipping and Returns"
-    },
-    {
-      "slug": "terms-and-conditions",
-      "title": "Terms & Conditions"
-    },
-    {
-      "slug": "warranty",
-      "title": "Warranty"
-    },
-    {
-      "slug": "withdrawal-instructions",
-      "title": "Withdrawal Instructions"
-    }
-  ]
+  "$comment": "Valid topic slugs per corpus. Generated from knowledge/ by tools/knowledge/generate_meta.py \u2014 edit the corpus, not this file. The vocabularies differ deliberately: the three corpora taxonomise differently and a shared list would invent mappings nobody uses.",
+  "topicsByCorpus": {
+    "policy": [
+      {
+        "slug": "cookies-policy",
+        "title": "Cookies Policy"
+      },
+      {
+        "slug": "faqs",
+        "title": "FAQs"
+      },
+      {
+        "slug": "impressum",
+        "title": "Impressum"
+      },
+      {
+        "slug": "international",
+        "title": "International"
+      },
+      {
+        "slug": "personalization",
+        "title": "Personalization"
+      },
+      {
+        "slug": "privacy-policy",
+        "title": "Privacy Policy"
+      },
+      {
+        "slug": "shipping-and-returns",
+        "title": "Shipping and Returns"
+      },
+      {
+        "slug": "terms-and-conditions",
+        "title": "Terms & Conditions"
+      },
+      {
+        "slug": "warranty",
+        "title": "Warranty"
+      },
+      {
+        "slug": "withdrawal-instructions",
+        "title": "Withdrawal Instructions"
+      }
+    ],
+    "template": [
+      {
+        "slug": "delivery-issues",
+        "title": "Delivery Issues"
+      },
+      {
+        "slug": "edit-address",
+        "title": "Edit Address"
+      },
+      {
+        "slug": "exchange-repair",
+        "title": "Exchange Repair"
+      },
+      {
+        "slug": "fedex",
+        "title": "Fedex"
+      },
+      {
+        "slug": "general-questions",
+        "title": "General Questions"
+      },
+      {
+        "slug": "order-status",
+        "title": "Order Status"
+      },
+      {
+        "slug": "other",
+        "title": "Other"
+      },
+      {
+        "slug": "personalization",
+        "title": "Personalization"
+      },
+      {
+        "slug": "refunds",
+        "title": "Refunds"
+      },
+      {
+        "slug": "repair",
+        "title": "Repair"
+      },
+      {
+        "slug": "us-delivery",
+        "title": "Us Delivery"
+      }
+    ],
+    "internal": [
+      {
+        "slug": "odoo-orders",
+        "title": "Odoo Orders"
+      },
+      {
+        "slug": "repair-policy",
+        "title": "Repair Policy"
+      },
+      {
+        "slug": "replacements-uk-us-ca",
+        "title": "Replacements Uk Us Ca"
+      },
+      {
+        "slug": "return-labels",
+        "title": "Return Labels"
+      },
+      {
+        "slug": "sending-replacements",
+        "title": "Sending Replacements"
+      },
+      {
+        "slug": "warranty-discounts",
+        "title": "Warranty Discounts"
+      }
+    ]
+  }
 }
