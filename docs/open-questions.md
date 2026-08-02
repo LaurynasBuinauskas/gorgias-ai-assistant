@@ -229,6 +229,33 @@ everything else, with no retention window. That makes redaction the **only** con
 customer PII and the search index. Before go-live someone on their side reviews a sample of
 indexed exemplars and signs off that no personal data survived.
 
+**This is now the highest-value open item, and the evidence says fifty is not enough.**
+
+Four samples of fifty were drawn from the live index on 2026-08-02, each after the previous
+round's fixes had been applied and reindexed. **Every round found a leak class the automated
+checks had passed**, and the eval PII class stayed green throughout:
+
+| Round | Found | Why no check could catch it |
+|---|---|---|
+| 1 | Street name orphaned when the phone rule ate the house number; per-recipient tracking links (213); quoted boilerplate | A bare street name matches no pattern; a URL token is an identifier that looks like a URL |
+| 2 | Corporate signatures written inline with pipes (426) | Job title + employer + city is often one person and matches nothing |
+| 3 | Third-party names in gift engraving; regulated-industry disclaimers | Names are *matched*, not detected — an engraved name is neither customer nor agent |
+| 4 | Customer-announced address blocks; `Chase` absent from street types | Street-type enumeration always lags reality |
+
+Each is now a regression fixture and the measurable classes sit at zero, but **the rate of
+discovery is the finding**. A sample of fifty is 0.3 % of 17,892: a class appearing once is
+likely present in dozens unseen, and a class absent from fifty says almost nothing. Iterating
+sample-fix-resample converges slowly and has no defined end.
+
+What would actually settle it: a person reading **300–500** exchanges, weighted toward the long
+tail, rather than fifty. `tools/ingest/review_sample.py --size 400` produces it; the output
+lands under the git-ignored `data/` and must be sent to the reviewer directly, not committed.
+
+**What is not at stake:** the beta. `TicketTopK` is 0 and `KnowledgeRetriever` short-circuits
+on `topK <= 0`, so no exemplar text reaches a draft today and none reached the eval drafts
+either. The exposure is customer-derived data at rest in the search index. Enabling exemplars
+is a deliberate one-setting change that should follow the sign-off, not precede it.
+
 ---
 
 ## 3. Wanted — not blocking
