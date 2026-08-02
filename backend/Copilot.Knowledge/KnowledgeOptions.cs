@@ -25,6 +25,16 @@ public sealed class KnowledgeOptions
     /// <summary>Semantic configuration defined by the index schema.</summary>
     public string SemanticConfiguration { get; set; } = "policy-semantic";
 
+    /// <summary>
+    /// Semantic reranking. On by default because it materially improves ranking, but it is
+    /// **metered**: the free tier allows 1,000 queries a month and each draft spends four, one
+    /// per corpus. Exhausting the quota makes Search return 402 and every draft fail, so this
+    /// exists as a switch that restores service in one app setting while billing is sorted.
+    ///
+    /// Retrieval still works without it — BM25 and vector results are fused, just not reranked.
+    /// </summary>
+    public bool UseSemanticRanking { get; set; } = true;
+
     /// <summary>Candidates pulled from the vector index before fusion and reranking.</summary>
     public int VectorCandidates { get; set; } = 20;
 }

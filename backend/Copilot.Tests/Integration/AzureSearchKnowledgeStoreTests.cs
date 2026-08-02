@@ -25,6 +25,10 @@ public sealed class AzureSearchKnowledgeStoreTests
             Endpoint = KnowledgeTestEnvironment.SearchEndpoint,
             IndexName = KnowledgeTestEnvironment.IndexName,
             ApiKey = KnowledgeTestEnvironment.SearchKey!,
+            // These tests are about market and exposure filtering, not ranking quality, and
+            // semantic reranking is metered — spending quota to assert a filter would be
+            // paying for the wrong thing.
+            UseSemanticRanking = false,
         });
 
         return new AzureSearchKnowledgeStore(

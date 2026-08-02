@@ -51,11 +51,6 @@ public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
         {
             Filter = BuildFilter(query),
             Size = query.TopK,
-            QueryType = SearchQueryType.Semantic,
-            SemanticSearch = new SemanticSearchOptions
-            {
-                SemanticConfigurationName = _options.SemanticConfiguration,
-            },
             VectorSearch = new VectorSearchOptions
             {
                 Queries =
@@ -69,6 +64,15 @@ public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
             },
             Select = { "id", "title", "content", "market", "topic", "sourcePath" },
         };
+
+        if (_options.UseSemanticRanking)
+        {
+            options.QueryType = SearchQueryType.Semantic;
+            options.SemanticSearch = new SemanticSearchOptions
+            {
+                SemanticConfigurationName = _options.SemanticConfiguration,
+            };
+        }
 
         var response = await _client.SearchAsync<SearchDocument>(query.Text, options, cancellationToken);
 
