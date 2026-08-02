@@ -36,6 +36,25 @@ public sealed class RetrievalHealthTests
     }
 
     [Fact]
+    public void RecoversWhenSemanticRankingWorksAgain()
+    {
+        // Quota resets monthly and billing can be enabled mid-incident. If the flag were
+        // permanent the gate would stay down until someone restarted the app, with nothing
+        // saying why.
+        var health = new RetrievalHealth();
+        health.RecordSemanticQuotaExhausted();
+
+        Assert.True(health.RecordSemanticRankingSucceeded());
+        Assert.False(health.SemanticRankingUnavailable);
+        Assert.Null(health.SemanticQuotaExhaustedAt);
+
+        // The count survives recovery: it is the record that something happened.
+        Assert.Equal(1, health.DegradedRetrievals);
+        // Only the call that ends a degraded period reports true.
+        Assert.False(health.RecordSemanticRankingSucceeded());
+    }
+
+    [Fact]
     public void OnlyPolicyIsRerankedSoOneDraftSpendsOneMeteredQuery()
     {
         // The whole point of the fix: four corpora are retrieved, one is reranked. If this

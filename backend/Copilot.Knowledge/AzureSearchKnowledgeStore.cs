@@ -118,9 +118,19 @@ public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
         CancellationToken cancellationToken)
     {
         var client = ClientFor(query.Corpus);
+        var semantic = options.QueryType == SearchQueryType.Semantic;
         try
         {
-            return await client.SearchAsync<SearchDocument>(query.Text, options, cancellationToken);
+            var response = await client.SearchAsync<SearchDocument>(
+                query.Text, options, cancellationToken);
+
+            if (semantic && _health.RecordSemanticRankingSucceeded())
+            {
+                _logger.LogInformation(
+                    "Semantic reranking is working again; the relevance gate is back in effect");
+            }
+
+            return response;
         }
         catch (RequestFailedException error) when (error.Status == 402)
         {

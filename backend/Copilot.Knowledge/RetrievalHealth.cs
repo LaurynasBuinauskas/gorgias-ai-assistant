@@ -33,4 +33,19 @@ public sealed class RetrievalHealth
             ref _semanticQuotaExhaustedAtTicks, DateTimeOffset.UtcNow.UtcTicks, 0);
         Interlocked.Increment(ref _degradedRetrievals);
     }
+
+    /// <summary>
+    /// Clears the degraded state after a semantic query succeeds again.
+    ///
+    /// Without this the flag is permanent for the process lifetime: quota resets on the first
+    /// of the month, or billing is enabled, and the gate stays down anyway until someone
+    /// happens to restart the app — with nothing to indicate why. Recovery should not require
+    /// a human noticing.
+    ///
+    /// <see cref="DegradedRetrievals"/> is deliberately not reset. It is a record of what
+    /// happened, and zeroing it would erase the evidence that anything did.
+    /// </summary>
+    /// <returns>True if this call ended a degraded period.</returns>
+    public bool RecordSemanticRankingSucceeded() =>
+        Interlocked.Exchange(ref _semanticQuotaExhaustedAtTicks, 0) != 0;
 }
