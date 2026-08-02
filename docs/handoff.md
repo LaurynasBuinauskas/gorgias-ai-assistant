@@ -61,6 +61,20 @@ learning loop"); treat that as an argument to evaluate, not a constraint.
 - Whether drafts are worth editing — the beta's actual question
 - First live drafts watched with a real agent in Gorgias
 
+**Client-requested features, designed but not scheduled.** The *feature* is client intent
+(asked for on 2026-08-02); the *design* in each document is an agent's proposal and is not
+approved. Do not conflate the two — the first is a requirement, the second is an argument.
+
+- **Draft rating / feedback loop** — agents flag a bad draft and the assistant improves from
+  it. `docs/feedback-loop-proposal.md`. The widget itself is `L-4` in `launch-plan.md`,
+  deferred from beta by the client as late-game. Note the proposal argues *against* the
+  literal reading of "learn from bad responses" and proposes flags-become-tests instead; that
+  is the agent's reasoning, and the client has not seen or agreed it
+- **Client updates policies themselves** — `docs/policy-management-proposal.md` §4, three
+  additive stages from pull requests to a Git-backed CMS. Stage choice is deliberately
+  deferred until there is evidence about who edits and how often (that repo's open question 3
+  and 5, both unanswered)
+
 **Open engineering, no owner:**
 - Panel E2E tests (mount, ticket switch, clipboard, floating fallback)
 - Exercising the kill switch and an index rollback as drills
