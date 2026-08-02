@@ -180,6 +180,48 @@ CASES: list[tuple[str, str, list[str], list[str]]] = [
         ["Ingrid Halvorsen"],
         ["Ingrid"],
     ),
+    # The five below are regressions. A human read fifty exchanges drawn from the live index
+    # and found each of these surviving redaction, after every automated check had passed.
+    (
+        "street name orphaned when the phone rule ate the house number",
+        # The phone rule matched "12 45143" across the number and postcode, which stopped the
+        # address rule matching and left street and city standing in the index.
+        "Lieferung bitte an Holunderweg 12 45143 Essen, Deutschland.",
+        [],
+        ["Holunderweg", "45143"],
+    ),
+    (
+        "compound street name written without a number",
+        "Das Paket wurde an die Bahnhofstrasse geliefert, nicht an meine Adresse.",
+        [],
+        ["Bahnhofstrasse"],
+    ),
+    (
+        "per-recipient tracking link",
+        # The token in the path resolves back to a single recipient, so the link is an
+        # identifier even though it matches no identifier pattern.
+        "Order status: https://example.invalid/_t/c/v3/AABoFExLSG2DsyCbvQviZPHptVeV",
+        [],
+        ["AABoFExLSG2DsyCbvQviZPHptVeV"],
+    ),
+    (
+        "forwarded chain dropped wholesale",
+        "Could you send the invoice?\n"
+        "---------- Forwarded message ---------\n"
+        "From: Carrier <ops@example.invalid> Sent: 12 November 2025\n"
+        "Deliver to Lindenweg 8, 40213 Duesseldorf.",
+        [],
+        ["Lindenweg", "40213", "Duesseldorf", "ops@example.invalid"],
+    ),
+    (
+        "order confirmation table dropped wholesale",
+        "Thanks for the update!\n"
+        "Shipping Address\n"
+        "Annelie Bergstrom\n"
+        "Solventilsgatan 4, 21120 Malmo\n",
+        [],
+        ["Solventilsgatan", "21120", "Malmo", "Annelie"],
+    ),
 ]
 
 # Text that must survive: over-redaction destroys the thing being collected.

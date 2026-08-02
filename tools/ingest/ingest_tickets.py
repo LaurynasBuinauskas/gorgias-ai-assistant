@@ -91,6 +91,20 @@ def request(url: str, headers: dict[str, str], body: dict) -> dict:
     raise SystemExit(f"{url.split('?')[0]}: gave up after repeated rate limiting")
 
 
+def indexed_keys(search_key: str) -> set[str]:
+    """Every document key currently in the index."""
+    keys: set[str] = set()
+    skip = 0
+    while True:
+        page = request(f"{ENDPOINT}/indexes/{INDEX}/docs/search?api-version={API_VERSION}",
+                       {"Content-Type": "application/json", "api-key": search_key},
+                       {"search": "*", "top": 1000, "skip": skip, "select": "id"})["value"]
+        if not page:
+            return keys
+        keys.update(document["id"] for document in page)
+        skip += len(page)
+
+
 def document_key(natural: str) -> str:
     """Search keys accept only letters, digits, _, - and =, so the natural key is encoded."""
     return base64.urlsafe_b64encode(natural.encode()).decode().rstrip("=")
@@ -101,6 +115,10 @@ def main() -> int:
     parser.add_argument("--in", dest="source", default="data/exemplars.jsonl")
     parser.add_argument("--dry-run", action="store_true",
                         help="check and report without embedding or writing")
+    parser.add_argument("--prune", action="store_true",
+                        help="delete indexed documents absent from the file. Needed whenever "
+                             "the file shrinks: uploading overwrites by key, so an exchange "
+                             "withdrawn from the corpus otherwise stays live in the index.")
     args = parser.parse_args()
 
     path = Path(args.source)
@@ -157,6 +175,15 @@ def main() -> int:
         return 0
 
     openai_key, search_key = secret("openai-apikey"), secret("search-adminkey")
+
+    if args.prune:
+        stale = indexed_keys(search_key) - {document["id"] for document in documents}
+        print(f"pruning            {len(stale):,} document(s) no longer in the corpus")
+        for start in range(0, len(stale), UPLOAD_BATCH):
+            batch = list(stale)[start:start + UPLOAD_BATCH]
+            request(f"{ENDPOINT}/indexes/{INDEX}/docs/index?api-version={API_VERSION}",
+                    {"Content-Type": "application/json", "api-key": search_key},
+                    {"value": [{"@search.action": "delete", "id": key} for key in batch]})
 
     # Embed and upload in the same pass. Embedding everything first meant a rate limit at 40 %
     # discarded every vector bought up to that point; batching makes progress durable, and the

@@ -50,8 +50,17 @@ COMPOUND_STREET_TYPES = (
     r"gatan|vägen|väg"
 )
 
+# Ordering below is load-bearing and was got wrong once. Every numeric rule competes for the
+# same digits, so the *most specific* must run first or a broader rule consumes its input and
+# leaves the specific identifier standing. A human review of fifty indexed exchanges found
+# "Holunderweg [PHONE] Essen": the phone rule had eaten "12 45143" out of the middle of an
+# address, which stopped the address rule matching and left the street and city in the index.
+# Addresses and postcodes therefore run before phone numbers, not after.
 PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
-    # Order and tracking identifiers first: they contain digits that later rules would eat.
+    # Links first. They carry per-recipient tracking tokens that resolve back to one customer,
+    # and their query strings are full of digits that every rule below would happily mangle.
+    ("LINK", "[LINK]", re.compile(r"<?https?://\S+|\bwww\.[\w.-]+\.\w{2,}\S*", re.IGNORECASE)),
+    # Order and tracking identifiers next: they contain digits that later rules would eat.
     ("ORDER", "[ORDER]", re.compile(
         r"#[A-Z]{2,3}#\d{3,7}"                      # the house format: #US#14532
         r"|\border\s*(?:number|no\.?|#|id)?\s*[:#]?\s*[A-Z]{0,3}#?\d{4,10}\b"
@@ -69,19 +78,17 @@ PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"\b(?:\d{4}[ -]?){3}\d{4}\b")),
     ("EMAIL", "[EMAIL]", re.compile(
         r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")),
-    ("PHONE", "[PHONE]", re.compile(
-        r"(?<![\w#])\+?\d[\d\s().-]{7,17}\d(?![\w])")),
-    ("PHONE", "[PHONE]", re.compile(
-        # "zero seven nine one double two ..." — four or more number words in a row.
-        rf"\b(?:(?:{NUMBER_WORDS})[\s,-]+){{3,}}(?:{NUMBER_WORDS})\b",
-        re.IGNORECASE)),
     ("ADDRESS", "[ADDRESS]", re.compile(
         # "14 Alderney Street" — number, name, type.
         rf"\b\d{{1,5}}[a-z]?[,\s]+[\w'’.-]+(?:\s+[\w'’.-]+)?\s+(?:{STREET_TYPES})\b"
         # "5 Rue Lafayette", "12 Via Roma" — number, type, name.
         rf"|\b\d{{1,5}}[a-z]?[,\s]+(?:{STREET_TYPES})\s+[\w'’.-]+(?:\s+[\w'’.-]+)?\b"
         # "Hauptstrasse 12", "Keizersgracht 210" — compound name, then number.
-        rf"|\b[\w'’.-]*(?:{COMPOUND_STREET_TYPES})\s+\d{{1,5}}[a-z]?\b",
+        rf"|\b[\w'’.-]*(?:{COMPOUND_STREET_TYPES})\s+\d{{1,5}}[a-z]?\b"
+        # A compound street name with no number at all. Without this an address whose number
+        # was already consumed — or simply written without one — leaves the street standing,
+        # which with a city is enough to find a household.
+        rf"|\b[\w'’.-]{{3,}}(?:{COMPOUND_STREET_TYPES})\b",
         re.IGNORECASE)),
     ("POSTCODE", "[POSTCODE]", re.compile(
         r"\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b"    # UK
@@ -89,9 +96,39 @@ PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"|\b\d{4}\s?[A-Z]{2}\b"                    # NL
         r"|\b[A-Z]\d[A-Z]\s?\d[A-Z]\d\b",           # CA
         re.IGNORECASE)),
+    ("PHONE", "[PHONE]", re.compile(
+        r"(?<![\w#])\+?\d[\d\s().-]{7,17}\d(?![\w])")),
+    ("PHONE", "[PHONE]", re.compile(
+        # "zero seven nine one double two ..." — four or more number words in a row.
+        rf"\b(?:(?:{NUMBER_WORDS})[\s,-]+){{3,}}(?:{NUMBER_WORDS})\b",
+        re.IGNORECASE)),
 ]
 
-PLACEHOLDER = re.compile(r"\[(?:CUSTOMER|AGENT|EMAIL|PHONE|ORDER|TRACKING|ADDRESS|POSTCODE|IBAN|CARD)\]")
+PLACEHOLDER = re.compile(
+    r"\[(?:CUSTOMER|AGENT|EMAIL|PHONE|ORDER|TRACKING|ADDRESS|POSTCODE|IBAN|CARD|LINK|SIGNATURE|QUOTED)\]")
+
+# Where a message stops being what someone wrote and starts being machine-generated tail:
+# a forwarded chain, a carrier's legal notice, a Shopify order-confirmation table. Everything
+# from the first of these onward is dropped.
+#
+# This is a privacy control and a quality control at once. Those blocks are where the street
+# addresses, per-recipient tracking links and third-party names survive — and as exemplars
+# they are worse than useless, because a 6,000-character customs boilerplate retrieved as
+# "how we answer this" teaches the model nothing except how to pad.
+QUOTED_CHAIN = re.compile(
+    r"^\s*-{3,}\s*(?:Forwarded message|Original Message|Ursprüngliche Nachricht)"
+    r"|^\s*From:\s.{0,200}?\bSent:"
+    r"|^\s*(?:Von|De|Da):\s.{0,200}?\b(?:Gesendet|Envoyé|Enviado|Inviato):"
+    r"|^.{0,120}?\b(?:wrote|schrieb|a écrit|escribió|ha scritto|kirjoitti|schreef):\s*$"
+    # Order-confirmation and shipping tables.
+    r"|^\s*(?:Bestell(?:ü|ue)bersicht|Order summary|Résumé de la commande|Resumen del pedido)"
+    r"|^\s*(?:Kundeninformationen|Customer information|Lieferadresse|Rechnungsadresse"
+    r"|Shipping [Aa]ddress|Billing [Aa]ddress|Delivery [Aa]ddress)"
+    # Confidentiality footers.
+    r"|^.{0,80}?\b(?:This e-?mail transmission|may contain confidential"
+    r"|privileged information|Šiame pranešime esanti informacija"
+    r"|Diese E-?Mail (?:kann|enthält) vertrauliche)",
+    re.IGNORECASE | re.MULTILINE)
 
 # Lines below one of these are a signature block: whatever follows is identity, not content.
 SIGNATURE_START = re.compile(
@@ -121,7 +158,8 @@ def redact(text: str, known_names: list[str] | None = None) -> str:
     # otherwise be replaced first, leaving "[CUSTOMER].[CUSTOMER]@example.com" that the email
     # rule can no longer match as an address. The fail-closed check caught exactly that on a
     # real batch, as residual fragments like "e.@gmail.com".
-    redacted = _redact_signature_blocks(text)
+    redacted = _strip_quoted_chain(text)
+    redacted = _redact_signature_blocks(redacted)
 
     for _, placeholder, pattern in PATTERNS:
         redacted = pattern.sub(placeholder, redacted)
@@ -168,6 +206,14 @@ def _redact_names(text: str, known_names: list[str]) -> str:
     for value, placeholder in sorted(parts, key=lambda p: len(p[0]), reverse=True):
         text = re.sub(rf"\b{re.escape(value)}\b", placeholder, text, flags=re.IGNORECASE)
     return text
+
+
+def _strip_quoted_chain(text: str) -> str:
+    """Drop everything from the first quoted-chain or boilerplate marker onward."""
+    match = QUOTED_CHAIN.search(text)
+    if match is None:
+        return text
+    return text[: match.start()].rstrip() + "\n[QUOTED]"
 
 
 def _redact_signature_blocks(text: str) -> str:
