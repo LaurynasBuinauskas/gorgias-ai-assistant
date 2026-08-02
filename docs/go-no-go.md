@@ -35,9 +35,12 @@ deliberately deferred.
       wrong build
 - [x] **Retrieval degradation is visible.** `/health` reports `degraded` when semantic ranking
       is unavailable, after an outage where quota exhaustion 500'd every draft silently
-- [x] **Budget alert configured** on the subscription
-- [ ] **Semantic-ranking quota decided** — `open-questions.md` D-7. Billing is enabled, so the
-      outage cannot recur the same way, but the standing cost has not been agreed
+- [x] **Budget alert configured** — `gorgias-assistant-monthly`, $150/month, verified via
+      `az consumption budget list`
+- [x] **Semantic-ranking quota decided** — D-7 closed. Billing enabled *and* reranking cut to
+      policy only, which is the change that mattered: one semantic query per draft rather than
+      four, so the free allowance covers ~1,000 drafts a month instead of 250. Accepted risk:
+      eval runs spend the same meter as production
 
 ### Client-facing
 
