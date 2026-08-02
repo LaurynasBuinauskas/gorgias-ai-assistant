@@ -16,7 +16,8 @@ namespace Copilot.Knowledge;
 /// </summary>
 public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
 {
-    private readonly SearchClient _client;
+    private readonly SearchClient _knowledge;
+    private readonly SearchClient _tickets;
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddings;
     private readonly KnowledgeOptions _options;
     private readonly RetrievalHealth _health;
@@ -34,10 +35,21 @@ public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
         _logger = logger;
 
         var endpoint = new Uri(_options.Endpoint);
-        _client = string.IsNullOrWhiteSpace(_options.ApiKey)
-            ? new SearchClient(endpoint, _options.IndexName, new DefaultAzureCredential())
-            : new SearchClient(endpoint, _options.IndexName, new AzureKeyCredential(_options.ApiKey));
+        _knowledge = CreateClient(endpoint, _options.IndexName, _options.ApiKey);
+        _tickets = CreateClient(endpoint, _options.TicketIndexName, _options.ApiKey);
     }
+
+    private static SearchClient CreateClient(Uri endpoint, string index, string apiKey) =>
+        string.IsNullOrWhiteSpace(apiKey)
+            ? new SearchClient(endpoint, index, new DefaultAzureCredential())
+            : new SearchClient(endpoint, index, new AzureKeyCredential(apiKey));
+
+    /// <summary>
+    /// Ticket exemplars are customer-derived and live in their own index; everything else
+    /// shares the knowledge index.
+    /// </summary>
+    private SearchClient ClientFor(KnowledgeCorpus corpus) =>
+        corpus == KnowledgeCorpus.Ticket ? _tickets : _knowledge;
 
     public async Task<IReadOnlyList<KnowledgeChunk>> RetrieveAsync(
         KnowledgeQuery query,
@@ -105,9 +117,10 @@ public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
         SearchOptions options,
         CancellationToken cancellationToken)
     {
+        var client = ClientFor(query.Corpus);
         try
         {
-            return await _client.SearchAsync<SearchDocument>(query.Text, options, cancellationToken);
+            return await client.SearchAsync<SearchDocument>(query.Text, options, cancellationToken);
         }
         catch (RequestFailedException error) when (error.Status == 402)
         {
@@ -120,7 +133,7 @@ public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
 
             options.QueryType = SearchQueryType.Simple;
             options.SemanticSearch = null;
-            return await _client.SearchAsync<SearchDocument>(query.Text, options, cancellationToken);
+            return await client.SearchAsync<SearchDocument>(query.Text, options, cancellationToken);
         }
     }
 

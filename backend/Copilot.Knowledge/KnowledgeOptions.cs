@@ -16,6 +16,26 @@ public sealed class KnowledgeOptions
     public string IndexName { get; set; } = "knowledge-v1";
 
     /// <summary>
+    /// Ticket exemplars live in their own index, not alongside policy.
+    ///
+    /// The original design put all four corpora in one index so cross-corpus scores would be
+    /// comparable — but retrieval never compares them: each corpus is fetched by its own
+    /// filtered query into its own bucket. With that reason gone, separating buys things that
+    /// matter:
+    ///
+    /// * **Personal data is isolated.** Tickets are the only customer-derived corpus, and
+    ///   redaction is the sole control protecting it. If redaction ever leaks, this index is
+    ///   dropped without touching policy.
+    /// * **Erasure is provable.** "Delete the ticket index" is complete by construction; a
+    ///   filtered delete inside a shared index has to be trusted.
+    /// * **Lifecycles differ.** Policy reindexes on change, tickets monthly, and at ~15,000
+    ///   chunks against 400 the tickets would otherwise dominate every policy rebuild.
+    ///
+    /// Same service, so no extra cost. The semantic quota is per service and is not isolated.
+    /// </summary>
+    public string TicketIndexName { get; set; } = "tickets-v1";
+
+    /// <summary>
     /// Local development only. Production authenticates as the App Service managed identity,
     /// which holds Search Index Data Reader and therefore cannot write. Leave empty to use
     /// that path.

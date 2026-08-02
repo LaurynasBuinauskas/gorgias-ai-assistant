@@ -29,6 +29,10 @@ SERVICE = "gorgias-assistant-search"
 VAULT = "gorgias-assistant-kv"
 SECRET = "search-adminkey"
 ALIAS = "knowledge"
+# Ticket exemplars are customer-derived and kept in their own index, so that personal data is
+# isolated from policy and erasure is "drop the index" rather than a filtered delete anyone has
+# to trust. See KnowledgeOptions.TicketIndexName.
+TICKET_ALIAS = "tickets"
 API_VERSION = "2024-07-01"
 # Index aliases are not exposed on any stable api-version yet (2024-07-01 and 2023-11-01
 # both reject the endpoint). Alias management is therefore pinned to a preview version,
@@ -78,21 +82,18 @@ def request(method: str, path: str, key: str, body: dict | None = None,
         raise SystemExit(f"{method} {path} failed: HTTP {error.code}\n{detail}") from error
 
 
-def index_name(version: int) -> str:
-    return f"{ALIAS}-v{version}"
-
-
-def create(version: int) -> int:
+def create(version: int, alias: str = ALIAS) -> int:
+    """Apply the schema to <alias>-v<version> and point the alias at it."""
     key = admin_key()
-    name = index_name(version)
+    name = f"{alias}-v{version}"
 
     schema = json.loads(SCHEMA.read_text(encoding="utf-8").replace("{{INDEX_NAME}}", name))
     request("PUT", f"indexes/{name}", key, schema)
     print(f"index {name} created or updated ({len(schema['fields'])} fields)")
 
-    request("PUT", f"aliases/{ALIAS}", key, {"name": ALIAS, "indexes": [name]},
+    request("PUT", f"aliases/{alias}", key, {"name": alias, "indexes": [name]},
             api_version=ALIAS_API_VERSION)
-    print(f"alias {ALIAS} -> {name}")
+    print(f"alias {alias} -> {name}")
     return 0
 
 
@@ -169,10 +170,13 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     create_cmd = sub.add_parser("create", help="apply the schema and point the alias at it")
     create_cmd.add_argument("--version", type=int, default=1)
+    create_cmd.add_argument("--alias", default=ALIAS,
+                            choices=[ALIAS, TICKET_ALIAS],
+                            help="which corpus family this index holds")
     sub.add_parser("smoke", help="verify filtered hybrid retrieval through the alias")
 
     args = parser.parse_args()
-    return create(args.version) if args.command == "create" else smoke()
+    return create(args.version, args.alias) if args.command == "create" else smoke()
 
 
 if __name__ == "__main__":

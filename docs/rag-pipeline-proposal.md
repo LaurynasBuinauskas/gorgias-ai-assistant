@@ -203,8 +203,24 @@ One index, one document per chunk, discriminated by `corpus`:
 | `effectiveDate` | filterable | Supports future dated policy |
 | `ticketId`, `resolvedAt` | retrievable | Ticket exemplars only |
 
-Single index rather than four: one query with a `corpus` filter is simpler to operate, and
-cross-corpus scoring stays comparable.
+**Corrected 2026-08-02.** This section originally chose a single index because "cross-corpus
+scoring stays comparable". Retrieval as built never compares them — each corpus is fetched by
+its own filtered query into its own bucket, and the relevance gate scores policy alone. With
+that reason gone, ticket exemplars now live in a **separate index** (`tickets-v1`), while
+policy, templates and internal share `knowledge-v1`.
+
+Separating buys three things the shared index could not:
+
+- **Personal data is isolated.** Tickets are the only customer-derived corpus and redaction is
+  the sole control protecting it. If redaction leaks, the ticket index is dropped without
+  touching policy.
+- **Erasure is provable.** "Delete the ticket index" is complete by construction; a filtered
+  delete inside a shared index has to be trusted.
+- **Lifecycles differ.** Policy reindexes on change, tickets monthly, and at ~15,000 chunks
+  against 400 the tickets would dominate every policy rebuild.
+
+Same Search service, so no extra cost — Basic allows 15 indexes. The semantic quota is per
+service and is *not* isolated by this.
 
 ## 8. Retrieval at request time
 
