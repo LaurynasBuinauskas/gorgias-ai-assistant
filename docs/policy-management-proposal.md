@@ -134,8 +134,8 @@ Editing requires a pull request.
 
 ### Stage 2 — Git-based editing (natural next step)
 Content owners edit markdown directly through the GitHub web UI: open file, edit, propose
-change. CI validates front-matter and structure; merge to `main` triggers reindex; the
-alias swaps only if the smoke gate passes.
+change. CI validates front-matter and structure; merge to `main` triggers a reindex into a
+new index version, and the app is repointed at it only if the smoke gate passes.
 
 Gets them: full history, review before anything goes live, instant revert, and no new
 system to run. Costs them: learning a pull request. For a handful of policy owners this is
@@ -161,7 +161,10 @@ have not met.
 1. Front-matter remains the contract.
 2. Validation runs before indexing, never after — bad content fails loudly at the edge.
 3. Reindexing is idempotent and safely repeatable.
-4. The alias swap gates on a smoke query, so a bad edit cannot become a live wrong answer.
+4. Going live gates on a smoke query, so a bad edit cannot become a live wrong answer.
+   **Not an alias swap** — Azure AI Search serves aliases only on preview api-versions, so the
+   mechanism is a `Knowledge__IndexName` app-setting change against a versioned index. See
+   `open-questions.md` D-4 and `rollback-runbook.md` lever 3.
 
 ## 5. Validation rules
 
@@ -181,8 +184,11 @@ call sites:
 
 ## 6. Open questions
 
-1. **Can we get the 99 markdown files** from `data_reference/markets`? Blocks everything
-   downstream; by far the highest-value item to obtain.
+1. ~~**Can we get the 99 markdown files** from `data_reference/markets`?~~ **Resolved
+   2026-08-01 by working around it.** The PDF encodes structure in font sizes, so all 99 files
+   were reconstructed exactly (`P-1`). Still *wanted* — the PDF strips diacritics from every
+   non-English market (`fur`, not `für`), a defect in the client's export rather than the
+   conversion — but no longer blocking. Tracked as `W-1`.
 2. **What are the 74 excluded "policy-adjacent" files?** They may contain real coverage.
 3. **Who owns policy content**, and who approves a change before it reaches customers?
    Determines whether Stage 2 review is meaningful or ceremonial.
