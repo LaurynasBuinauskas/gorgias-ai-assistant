@@ -116,11 +116,17 @@ def redact(text: str, known_names: list[str] | None = None) -> str:
     if not text:
         return text
 
-    redacted = _redact_names(text, known_names or [])
-    redacted = _redact_signature_blocks(redacted)
+    # Order matters, and getting it wrong is subtle. Structured identifiers are redacted
+    # before names, because a name inside an address — marie.dupont@example.com — would
+    # otherwise be replaced first, leaving "[CUSTOMER].[CUSTOMER]@example.com" that the email
+    # rule can no longer match as an address. The fail-closed check caught exactly that on a
+    # real batch, as residual fragments like "e.@gmail.com".
+    redacted = _redact_signature_blocks(text)
 
     for _, placeholder, pattern in PATTERNS:
         redacted = pattern.sub(placeholder, redacted)
+
+    redacted = _redact_names(redacted, known_names or [])
 
     # Collapse runs the rules produced, e.g. "[ADDRESS], [POSTCODE] [POSTCODE]".
     return re.sub(r"(\[[A-Z]+\])(?:[\s,]+\1)+", r"\1", redacted)
@@ -135,8 +141,10 @@ def residual_identifiers(text: str) -> list[Finding]:
     if not text:
         return []
 
-    # Placeholders are the expected output, not a leak.
-    masked = PLACEHOLDER.sub("", text)
+    # Placeholders are the expected output, not a leak. Replaced with a space rather than
+    # nothing: removing them glues neighbouring fragments together and manufactures things
+    # that look like identifiers but are not.
+    masked = PLACEHOLDER.sub(" ", text)
 
     findings: list[Finding] = []
     for kind, _, pattern in PATTERNS:
