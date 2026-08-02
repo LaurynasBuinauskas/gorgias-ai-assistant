@@ -22,6 +22,8 @@ import json
 import shutil
 import subprocess
 import sys
+import re
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -40,6 +42,13 @@ EMBEDDING_DIMENSIONS = 1536
 EMBED_BATCH = 96
 UPLOAD_BATCH = 500
 
+# text-embedding-3-small accepts 8,192 tokens. The usual four-characters-per-token rule does
+# not hold here: German, Polish and Lithuanian tokenise closer to two, so a 16,000-character
+# exchange overruns the limit and rejects the whole batch. Three exchanges of 18,555 exceed
+# this; truncating them keeps the substance — the median exchange is 746 characters — where
+# dropping them would silently lose the longest conversations in the corpus.
+MAX_EMBED_CHARS = 12_000
+
 
 def secret(name: str) -> str:
     cli = shutil.which("az")
@@ -55,16 +64,31 @@ def secret(name: str) -> str:
 
 
 def request(url: str, headers: dict[str, str], body: dict) -> dict:
-    req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST")
-    for key, value in headers.items():
-        req.add_header(key, value)
-    try:
-        with urllib.request.urlopen(req, timeout=180) as response:
-            payload = response.read()
-            return json.loads(payload) if payload else {}
-    except urllib.error.HTTPError as error:
-        raise SystemExit(f"{url.split('?')[0]}: HTTP {error.code}\n"
-                         f"{error.read().decode(errors='replace')[:400]}") from error
+    """POST with backoff.
+
+    Embedding a corpus this size reliably trips the tokens-per-minute limit, which is a pause
+    rather than a failure. Treating it as fatal threw away 7,392 embeddings on the first run.
+    """
+    for attempt in range(8):
+        req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST")
+        for key, value in headers.items():
+            req.add_header(key, value)
+        try:
+            with urllib.request.urlopen(req, timeout=300) as response:
+                payload = response.read()
+                return json.loads(payload) if payload else {}
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode(errors="replace")
+            if error.code in (429, 500, 502, 503, 504):
+                # OpenAI states the wait in the message; honour it rather than guessing.
+                suggested = re.search(r"try again in ([\d.]+)s", detail)
+                delay = float(suggested.group(1)) + 1 if suggested else min(2 ** attempt, 30)
+                print(f"    rate limited, waiting {delay:.1f}s", flush=True)
+                time.sleep(delay)
+                continue
+            raise SystemExit(f"{url.split('?')[0]}: HTTP {error.code}\n{detail[:400]}") from error
+
+    raise SystemExit(f"{url.split('?')[0]}: gave up after repeated rate limiting")
 
 
 def document_key(natural: str) -> str:
@@ -87,9 +111,12 @@ def main() -> int:
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
     print(f"read {len(rows):,} exchange(s) from {path}")
 
-    documents, blocked = [], []
+    documents, blocked, truncated = [], [], 0
     for row in rows:
         text = f"Customer asked: {row['question']}\n\nSupport replied: {row['answer']}"
+        if len(text) > MAX_EMBED_CHARS:
+            text = text[:MAX_EMBED_CHARS]
+            truncated += 1
 
         residual = residual_identifiers(text)
         if residual:
@@ -114,6 +141,7 @@ def main() -> int:
         })
 
     print(f"ready to index      {len(documents):,}")
+    print(f"truncated           {truncated:,}  (over {MAX_EMBED_CHARS:,} characters)")
     print(f"withheld            {len(blocked):,}  (residual identifiers at the boundary)")
     for ticket_id, findings in blocked[:10]:
         print(f"  ticket {ticket_id}: {findings}")
@@ -130,29 +158,31 @@ def main() -> int:
 
     openai_key, search_key = secret("openai-apikey"), secret("search-adminkey")
 
-    vectors: list[list[float]] = []
-    texts = [d["content"] for d in documents]
-    for start in range(0, len(texts), EMBED_BATCH):
-        batch = texts[start:start + EMBED_BATCH]
+    # Embed and upload in the same pass. Embedding everything first meant a rate limit at 40 %
+    # discarded every vector bought up to that point; batching makes progress durable, and the
+    # stable document key means a re-run simply overwrites what is already there.
+    uploaded = 0
+    for start in range(0, len(documents), EMBED_BATCH):
+        batch = documents[start:start + EMBED_BATCH]
         payload = request("https://api.openai.com/v1/embeddings",
                           {"Content-Type": "application/json",
                            "Authorization": f"Bearer {openai_key}"},
-                          {"model": EMBEDDING_MODEL, "input": batch,
+                          {"model": EMBEDDING_MODEL,
+                           "input": [d["content"] for d in batch],
                            "dimensions": EMBEDDING_DIMENSIONS})
-        vectors.extend(item["embedding"] for item in payload["data"])
-        print(f"  embedded {min(start + len(batch), len(texts)):,}/{len(texts):,}")
+        vectors = [item["embedding"] for item in payload["data"]]
 
-    for start in range(0, len(documents), UPLOAD_BATCH):
-        chunk = documents[start:start + UPLOAD_BATCH]
         request(f"{ENDPOINT}/indexes/{INDEX}/docs/index?api-version={API_VERSION}",
                 {"Content-Type": "application/json", "api-key": search_key},
                 {"value": [dict(document, contentVector=vector,
                                 **{"@search.action": "mergeOrUpload"})
-                           for document, vector in zip(chunk, vectors[start:start + UPLOAD_BATCH],
-                                                       strict=True)]})
-        print(f"  uploaded {min(start + UPLOAD_BATCH, len(documents)):,}/{len(documents):,}")
+                           for document, vector in zip(batch, vectors, strict=True)]})
 
-    print(f"\nindexed {len(documents):,} exemplar(s) into {INDEX}")
+        uploaded += len(batch)
+        if uploaded % (EMBED_BATCH * 10) == 0 or uploaded == len(documents):
+            print(f"  indexed {uploaded:,}/{len(documents):,}", flush=True)
+
+    print(f"\nindexed {uploaded:,} exemplar(s) into {INDEX}")
     return 0
 
 
