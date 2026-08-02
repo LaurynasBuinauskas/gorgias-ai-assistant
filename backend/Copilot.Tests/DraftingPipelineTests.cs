@@ -144,6 +144,7 @@ public sealed class DraftingPipelineTests
         var retriever = new KnowledgeRetriever(
             store ?? new FakeKnowledgeStore(),
             new GlobalFallbackMarketResolver(),
+            new RetrievalHealth(),
             Options.Create(retrievalOptions));
 
         return new DraftingPipeline(

@@ -175,7 +175,8 @@ public sealed class RelevanceGateTests
         var options = retrieval ?? new RetrievalOptions { MinimumPolicyScore = Threshold };
         return new DraftingPipeline(
             chatClient,
-            new KnowledgeRetriever(store, new GlobalFallbackMarketResolver(), Options.Create(options)),
+            new KnowledgeRetriever(store, new GlobalFallbackMarketResolver(), new RetrievalHealth(),
+                Options.Create(options)),
             Options.Create(new DraftingOptions()),
             Options.Create(options),
             NullLogger<DraftingPipeline>.Instance);

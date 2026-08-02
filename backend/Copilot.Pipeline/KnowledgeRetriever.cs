@@ -12,6 +12,7 @@ namespace Copilot.Pipeline;
 public sealed class KnowledgeRetriever(
     IKnowledgeStore store,
     IMarketResolver marketResolver,
+    RetrievalHealth health,
     IOptions<RetrievalOptions> options)
 {
     private readonly RetrievalOptions _options = options.Value;
@@ -50,6 +51,7 @@ public sealed class KnowledgeRetriever(
         return new RetrievedContext
         {
             Market = market,
+            RankingUnavailable = health.SemanticRankingUnavailable,
             Policy = policy.Result,
             Templates = templates.Result,
             Tickets = tickets.Result,

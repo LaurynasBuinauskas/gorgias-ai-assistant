@@ -24,6 +24,13 @@ public sealed record RetrievedContext
     /// <summary>Retrieval was switched off; the draft falls back to ticket content alone.</summary>
     public bool Bypassed { get; init; }
 
+    /// <summary>
+    /// Results came back unranked because semantic reranking was unavailable. The scores are
+    /// then fusion scores on a different scale that do not separate covered from uncovered
+    /// questions, so the relevance gate has nothing meaningful to threshold.
+    /// </summary>
+    public bool RankingUnavailable { get; init; }
+
     public double BestPolicyScore => Policy.Count == 0 ? 0 : Policy.Max(chunk => chunk.Score);
 
     public static RetrievedContext None(MarketResolution market) =>

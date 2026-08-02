@@ -99,7 +99,8 @@ public sealed class RetrievalObservabilityTests
         var options = new RetrievalOptions { MinimumPolicyScore = 1.6 };
         return new DraftingPipeline(
             new StubChatClient(),
-            new KnowledgeRetriever(store, new FixedMarketResolver("DE"), Options.Create(options)),
+            new KnowledgeRetriever(store, new FixedMarketResolver("DE"), new RetrievalHealth(),
+                Options.Create(options)),
             Options.Create(new DraftingOptions()),
             Options.Create(options),
             new LoggerFactory([logs]).CreateLogger<DraftingPipeline>());

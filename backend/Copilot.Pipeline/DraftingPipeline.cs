@@ -132,6 +132,18 @@ public sealed class DraftingPipeline(
             return true;
         }
 
+        // A gate that cannot score must stand down, not decline everything. Unranked results
+        // score on a different scale — around 0.03 against a threshold calibrated near 2 — so
+        // applying it here would refuse every draft while the service looked healthy.
+        if (context.RankingUnavailable)
+        {
+            logger.LogWarning(
+                "Draft {DraftId} ticket {TicketId}: relevance gate skipped, semantic ranking "
+                + "unavailable. Coverage rests on the prompt rule alone until quota is restored",
+                draftId, ticket.Id);
+            return true;
+        }
+
         var covered = context.BestPolicyScore >= _retrieval.MinimumPolicyScore;
         RetrievalLog.Gate(logger, draftId, ticket, context, _retrieval.MinimumPolicyScore, covered);
         return covered;

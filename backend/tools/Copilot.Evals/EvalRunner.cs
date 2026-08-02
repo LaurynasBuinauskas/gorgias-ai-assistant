@@ -46,6 +46,7 @@ public sealed class EvalRunner(
         var retriever = new KnowledgeRetriever(
             store,
             new FixedMarketResolver(testCase.Market),
+            new RetrievalHealth(),
             Options.Create(retrievalOptions));
 
         var pipeline = new DraftingPipeline(
