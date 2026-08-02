@@ -45,4 +45,19 @@ public sealed class RetrievalOptions
     /// D-6 for the decision this needs.
     /// </summary>
     public double MinimumPolicyScore { get; set; } = 1.6;
+
+    /// <summary>
+    /// **This threshold is on the semantic reranker's scale and is meaningless without it.**
+    ///
+    /// Measured 2026-08-02: with reranking off, Search returns reciprocal-rank-fusion scores
+    /// clustered around 0.032 that do not separate covered from uncovered questions at all —
+    /// "wholesale prices" scored 0.0333 against "how long do I have to return an item" at
+    /// 0.0325. There is no threshold on that scale that gates anything.
+    ///
+    /// So `Knowledge:UseSemanticRanking` and this value move together: turning reranking off
+    /// requires dropping this to zero, which disables the gate and leaves coverage to the
+    /// prompt rule alone. The pipeline warns at startup if they are set inconsistently, because
+    /// the failure mode otherwise is every draft silently returning insufficient_data.
+    /// </summary>
+    public bool SemanticRankingEnabled { get; set; } = true;
 }

@@ -22,6 +22,12 @@ public static class ServiceCollectionExtensions
             .Validate(
                 o => o.MinimumPolicyScore >= 0,
                 "Retrieval:MinimumPolicyScore cannot be negative.")
+            .Validate(
+                o => o.SemanticRankingEnabled || o.MinimumPolicyScore <= 0.1,
+                "Retrieval:MinimumPolicyScore is on the semantic reranker's scale. With "
+                + "Knowledge:UseSemanticRanking=false the scores are ~0.03, so any meaningful "
+                + "threshold declines every draft. Set Retrieval:MinimumPolicyScore=0 and "
+                + "Retrieval:SemanticRankingEnabled=false together.")
             .ValidateOnStart();
 
         services.AddSingleton<IMarketResolver, StorefrontMarketResolver>();
