@@ -299,3 +299,52 @@ support and is never quoted to a customer — but it will degrade internal retri
 | Is per-ticket fetching acceptable? | **Yes** — offline job, may run overnight. `R-1` dropped from gate to timeboxed research | 2026-07-29 |
 | Where is the authoritative policy markdown? | **No longer blocking.** Fallback executed; 99 files recovered from the PDF and verified. Downgraded to W-1 | 2026-08-01 |
 | Which signal determines market — locale, country, or channel? | **Question was malformed** — no `locale` field exists in the Gorgias API. Narrowed to the factual question in B-1 | 2026-08-01 |
+
+---
+
+## D-7 · Semantic ranking is metered, and the meter ran out — **needs a decision**
+
+**Found the hard way on 2026-08-02: production drafting returned HTTP 500 for a period.**
+
+Azure AI Search semantic reranking on the **free** tier allows 1,000 queries per month. Each
+draft spends **four** — one per corpus. Repeated eval runs exhausted the month's allowance,
+Search began returning `402 Payment Required`, and every draft failed.
+
+### What it cost, and what it revealed
+
+Two things were wrong beyond the quota itself:
+
+- **No fallback.** A metered dependency failing in a way that is neither transient nor
+  retryable had no handling at all. There is now a switch (`Knowledge:UseSemanticRanking`).
+- **The gate does not survive without it.** Measured: with reranking off, Search returns
+  fusion scores clustered around 0.032 which do **not** separate covered from uncovered
+  questions — "wholesale prices" scored 0.0333 against "how long do I have to return an item"
+  at 0.0325. Turning reranking off does not degrade the relevance gate, it **removes** it.
+
+### Where production stands right now
+
+Running **without semantic reranking**, and therefore **without the relevance gate**:
+
+```
+Knowledge__UseSemanticRanking = false
+Retrieval__MinimumPolicyScore = 0
+Retrieval__SemanticRankingEnabled = false
+```
+
+Drafting works and citations are correct. What is lost is ranking quality and the honest
+decline — coverage now rests entirely on the prompt rule, which eval class D was measuring as
+a *second* line rather than the only one.
+
+### The decision
+
+| Option | Cost | Consequence |
+|---|---|---|
+| **Enable semantic billing** | Metered per query, on top of the ~$75/month Basic tier | Restores ranking quality and the relevance gate. Every draft spends 4 queries, so cost scales with usage |
+| **Stay without reranking** | Nothing extra | Weaker ranking, no gate. The prompt still instructs the model to decline, but nothing enforces it |
+| **Reduce queries per draft** | Nothing extra | Retrieving fewer corpora, or only reranking policy, cuts spend roughly fourfold and keeps the gate |
+
+The third is worth considering regardless: reranking only the policy corpus would have made the
+free allowance last four times longer, and policy is the only corpus the gate scores.
+
+**Until this is decided, eval runs consume the same meter as production.** That is the
+underlying problem — a test suite and the live product sharing a quota with no separation.
