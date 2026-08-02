@@ -16,6 +16,7 @@ public static class ServiceCollectionExtensions
                 "Knowledge:IndexName is not configured.")
             .ValidateOnStart();
 
+        services.AddSingleton<RetrievalHealth>();
         services.AddSingleton<IKnowledgeStore, AzureSearchKnowledgeStore>();
         return services;
     }

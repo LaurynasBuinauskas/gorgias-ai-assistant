@@ -19,15 +19,18 @@ public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
     private readonly SearchClient _client;
     private readonly IEmbeddingGenerator<string, Embedding<float>> _embeddings;
     private readonly KnowledgeOptions _options;
+    private readonly RetrievalHealth _health;
     private readonly ILogger<AzureSearchKnowledgeStore> _logger;
 
     public AzureSearchKnowledgeStore(
         IOptions<KnowledgeOptions> options,
         IEmbeddingGenerator<string, Embedding<float>> embeddings,
+        RetrievalHealth health,
         ILogger<AzureSearchKnowledgeStore> logger)
     {
         _options = options.Value;
         _embeddings = embeddings;
+        _health = health;
         _logger = logger;
 
         var endpoint = new Uri(_options.Endpoint);
@@ -65,7 +68,7 @@ public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
             Select = { "id", "title", "content", "market", "topic", "sourcePath" },
         };
 
-        if (_options.UseSemanticRanking)
+        if (_options.UseSemanticRanking && query.Rerank)
         {
             options.QueryType = SearchQueryType.Semantic;
             options.SemanticSearch = new SemanticSearchOptions
@@ -74,7 +77,7 @@ public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
             };
         }
 
-        var response = await _client.SearchAsync<SearchDocument>(query.Text, options, cancellationToken);
+        var response = await SearchAsync(query, options, cancellationToken);
 
         var chunks = new List<KnowledgeChunk>(query.TopK);
         await foreach (var result in response.Value.GetResultsAsync().WithCancellation(cancellationToken))
@@ -87,6 +90,38 @@ public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
             chunks.Count, query.Corpus, query.Market);
 
         return chunks;
+    }
+
+    /// <summary>
+    /// Runs the search, falling back to unranked results if semantic reranking is refused.
+    ///
+    /// The quota is metered and monthly, so exhaustion is neither transient nor retryable —
+    /// there is nothing to wait for. Throwing turned a ranking problem into a total outage:
+    /// every draft returned 500 because the reranker was out of credit. An unranked result set
+    /// is materially worse than a ranked one and enormously better than none.
+    /// </summary>
+    private async Task<Response<SearchResults<SearchDocument>>> SearchAsync(
+        KnowledgeQuery query,
+        SearchOptions options,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _client.SearchAsync<SearchDocument>(query.Text, options, cancellationToken);
+        }
+        catch (RequestFailedException error) when (error.Status == 402)
+        {
+            _health.RecordSemanticQuotaExhausted();
+            _logger.LogError(
+                error,
+                "Semantic reranking refused (402): the monthly quota is exhausted. Retrieval is "
+                + "running unranked, and the relevance gate cannot score. Enable semantic "
+                + "billing or reduce reranked queries");
+
+            options.QueryType = SearchQueryType.Simple;
+            options.SemanticSearch = null;
+            return await _client.SearchAsync<SearchDocument>(query.Text, options, cancellationToken);
+        }
     }
 
     /// <summary>

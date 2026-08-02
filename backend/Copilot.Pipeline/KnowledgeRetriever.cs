@@ -34,8 +34,10 @@ public sealed class KnowledgeRetriever(
         }
 
         // Issued together: they are independent reads and the draft waits on the slowest.
+        // Only policy is reranked. The gate scores policy and nothing else, so reranking the
+        // other three spent metered queries on rankings nothing reads.
         var policy = Fetch(query, market, KnowledgeCorpus.Policy, KnowledgeExposure.Customer,
-            _options.PolicyTopK, cancellationToken);
+            _options.PolicyTopK, cancellationToken, rerank: true);
         var templates = Fetch(query, market, KnowledgeCorpus.Template, KnowledgeExposure.Customer,
             _options.TemplateTopK, cancellationToken);
         var tickets = Fetch(query, market, KnowledgeCorpus.Ticket, KnowledgeExposure.Customer,
@@ -61,7 +63,8 @@ public sealed class KnowledgeRetriever(
         KnowledgeCorpus corpus,
         KnowledgeExposure exposure,
         int topK,
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken,
+        bool rerank = false) =>
         topK <= 0
             ? Task.FromResult<IReadOnlyList<KnowledgeChunk>>([])
             : store.RetrieveAsync(
@@ -72,6 +75,7 @@ public sealed class KnowledgeRetriever(
                     Corpus = corpus,
                     Exposure = exposure,
                     TopK = topK,
+                    Rerank = rerank,
                 },
                 cancellationToken);
 

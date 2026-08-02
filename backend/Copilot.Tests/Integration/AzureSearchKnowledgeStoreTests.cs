@@ -32,7 +32,8 @@ public sealed class AzureSearchKnowledgeStoreTests
         });
 
         return new AzureSearchKnowledgeStore(
-            options, embeddings, NullLogger<AzureSearchKnowledgeStore>.Instance);
+            options, embeddings, new RetrievalHealth(),
+            NullLogger<AzureSearchKnowledgeStore>.Instance);
     }
 
     [IntegrationFact]

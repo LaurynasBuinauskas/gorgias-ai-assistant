@@ -49,6 +49,7 @@ var store = new AzureSearchKnowledgeStore(
         ApiKey = searchKey,
     }),
     embeddings,
+    new RetrievalHealth(),
     NullLogger<AzureSearchKnowledgeStore>.Instance);
 
 var runner = new EvalRunner(chatClient, store, new RetrievalOptions(), new DraftingOptions());

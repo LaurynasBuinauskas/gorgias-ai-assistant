@@ -37,4 +37,14 @@ public sealed record KnowledgeQuery
     public KnowledgeExposure Exposure { get; init; } = KnowledgeExposure.Customer;
 
     public int TopK { get; init; } = 4;
+
+    /// <summary>
+    /// Whether to spend a semantic rerank on this query.
+    ///
+    /// Metered, so it is requested per query rather than applied to all of them. Only the
+    /// policy corpus needs it: the relevance gate scores policy and nothing else, and the
+    /// other corpora are selected rather than ranked. Reranking all four quadrupled the spend
+    /// for no gain the gate could use.
+    /// </summary>
+    public bool Rerank { get; init; }
 }

@@ -12,4 +12,10 @@ public sealed record HealthResponseV1
 
     /// <summary>Informational assembly version, e.g. `1.0.0+&lt;commit sha&gt;`.</summary>
     public required string Version { get; init; }
+
+    /// <summary>
+    /// Present only when something is wrong. Running degraded is acceptable; running degraded
+    /// invisibly is what turned a quota limit into a production outage.
+    /// </summary>
+    public IReadOnlyList<string>? Degraded { get; init; }
 }
