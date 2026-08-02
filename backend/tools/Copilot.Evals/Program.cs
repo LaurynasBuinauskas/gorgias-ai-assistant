@@ -101,6 +101,9 @@ if (draftsPath is not null)
             body = r.Outcome.Body,
             citations = r.Outcome.Citations.Select(c => c.SourcePath).ToArray(),
             passed = r.Passed,
+            // Carried so a judge comparing two runs can assess whether a draft answers the
+            // question, not merely whether it reads well.
+            question = CustomerQuestion(Path.Combine(fixtures, r.Case.Fixture)),
         }),
         new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
     Console.WriteLine($"Drafts written to {draftsPath}");
@@ -206,4 +209,32 @@ static string? Secret(string name)
     var value = process.StandardOutput.ReadToEnd().Trim();
     process.WaitForExit(30_000);
     return process.ExitCode == 0 && value.Length > 0 ? value : null;
+}
+
+static string CustomerQuestion(string fixturePath)
+{
+    if (!File.Exists(fixturePath))
+    {
+        return "";
+    }
+
+    using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(fixturePath));
+    var root = document.RootElement;
+    var subject = root.TryGetProperty("subject", out var s) ? s.GetString() : "";
+
+    var text = "";
+    if (root.TryGetProperty("messages", out var messages))
+    {
+        foreach (var message in messages.EnumerateArray())
+        {
+            var fromAgent = message.TryGetProperty("fromAgent", out var a) && a.GetBoolean();
+            var note = message.TryGetProperty("isInternalNote", out var n) && n.GetBoolean();
+            if (!fromAgent && !note && message.TryGetProperty("text", out var t))
+            {
+                text = t.GetString() ?? "";
+            }
+        }
+    }
+
+    return $"Subject: {subject}\n{text}".Trim();
 }

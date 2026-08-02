@@ -196,9 +196,12 @@ Four levers, fastest first:
 2. **Ungrounded fallback (one config change).** A flag that bypasses retrieval and reverts
    to today's ticket-only prompt. Degrades quality to the current known-acceptable
    behaviour without taking the tool away.
-3. **Index rollback (minutes).** Indexes are versioned (`policy-v3`) behind an alias; the
-   API reads the alias. Rolling back a bad reindex is an alias swap, not a re-ingest
-   (`R-10`).
+3. **Index rollback (minutes).** Indexes are versioned (`knowledge-v2`) and the API is
+   configured with the concrete name, so rolling back a bad reindex is an app-setting
+   change — not a re-ingest, and **not an alias swap**. Aliases were the original design
+   and do not work: Azure AI Search serves them only on preview api-versions, and a query
+   through one returns 404 on the stable version the app uses. See `open-questions.md` D-4
+   and `rollback-runbook.md`.
 4. **Full revert (one deploy).** Redeploy the previous API build; `/health` reports the
    commit so the rollback is verifiable rather than assumed.
 

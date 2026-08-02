@@ -70,7 +70,27 @@ sends autonomously, coverage is partial and it will say so, declining is correct
 answers are English only, accuracy is not guaranteed, and it can be switched off instantly.
 Go-live is gated on this being agreed rather than implied.
 
-### D-4 · How does the API reach the index — alias, or configured index name? — `R-5`, `R-10`, `L-5`
+### D-4 · ~~How does the API reach the index — alias, or configured index name?~~ **ANSWERED 2026-08-02**
+
+**Option B. The API reads a configured index name; rollback is an app-setting change.**
+
+Re-verified empirically before closing, rather than taken on the earlier note: a query through
+the `knowledge` alias returns **404 on stable `2024-07-01`** and succeeds on
+`2024-05-01-preview` and `2025-05-01-preview`. Alias *management* is equally preview-only.
+Aliases do exist on the service — `knowledge` → `knowledge-v1`, `tickets` → `tickets-v1` — and
+are **unused**; they are a trap for anyone who assumes otherwise, so `rollback-runbook.md` says
+so explicitly.
+
+`launch-plan.md` §9 lever 3 has been corrected, and the mechanism is written up in
+`rollback-runbook.md` lever 3: build the new version alongside the old, point
+`Knowledge__IndexName` at it, roll back with the same command and the old name. Costs a 70–90
+second restart; keeps the production request path on a supported contract.
+
+A tool for driving aliases was written and then deleted — building on a rejected design is
+worse than not building.
+
+<details>
+<summary>Original question, kept for the reasoning</summary>
 
 **Ours to decide, not the client's, but it changes three tasks so it should be decided
 deliberately.**
@@ -96,6 +116,8 @@ only instantaneity.
 
 Whichever is chosen, `R-10` and the `L-5` runbook must describe *that* mechanism, not the
 alias swap the plan currently assumes.
+
+</details>
 
 ### D-5 · ~~Is English-only actually required?~~ **ANSWERED 2026-08-01**
 
