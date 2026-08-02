@@ -1,0 +1,107 @@
+# Ticket exemplar runbook
+
+Operating the `tickets-v1` index: rebuilding it, removing someone from it, and deciding when
+it is stale. Policy knowledge (`knowledge-v1`) is not covered here — it has no customer data
+and a different lifecycle.
+
+**Current state: exemplars are indexed but switched off.** `Retrieval:TicketTopK` is `0`, and
+`KnowledgeRetriever` short-circuits on `topK <= 0` without querying the store. No exemplar text
+reaches a draft. Turning them on is one app setting, and it must not happen before the review
+in `open-questions.md` D-3 is signed off.
+
+---
+
+## 1. Rebuild
+
+Run in order. Each step's output is the next step's input, and skipping the dry run has
+already cost one wasted embedding bill.
+
+```bash
+python tools/ingest/extract_tickets.py --months 12
+python tools/ingest/sanitize_exemplars.py --in data/exemplars.jsonl --out data/exemplars.clean.jsonl
+python tools/ingest/ingest_tickets.py --in data/exemplars.clean.jsonl --dry-run
+python tools/ingest/ingest_tickets.py --in data/exemplars.clean.jsonl --prune
+python tools/ingest/review_sample.py --size 400
+```
+
+Things that are easy to get wrong:
+
+- **`--prune` is not optional when the corpus shrinks.** Uploads overwrite by document key, so
+  an exchange withdrawn from the file stays live in the index until pruned.
+- **Extraction takes hours and must not be run twice concurrently.** It has been, once: both
+  jobs appended to the same file and produced 18,537 duplicate rows, which then produced a
+  false alarm about corpus size. Check for a running job before starting one.
+- **`sanitize_exemplars` applies the removal ledger.** Never bypass it by ingesting the raw
+  extraction file directly — that is precisely how an erased ticket comes back.
+- Re-running is safe. Document keys are stable, so an interrupted ingest resumes by overwriting.
+
+## 2. Remove someone
+
+Both cases are the same command: a reviewer flagged an exchange as identifying, or a customer
+invoked their right to erasure.
+
+```bash
+python tools/ingest/remove_exemplars.py --tickets 221595229 --reason "erasure request"
+```
+
+It finds documents by filtering on `ticketId` server-side rather than reconstructing keys, so
+an exchange indexed under an unexpected ordinal is still caught. It records the removal in
+`knowledge/_meta/removed-tickets.json` **before** verifying, because the ledger states an
+intent — never index this again — that is settled the moment the delete is issued. It then
+polls for up to 60 seconds: the index is eventually consistent, and an immediate check once
+reported 17 of 29 documents surviving a delete that had actually succeeded.
+
+Verified end to end on 2026-08-02 against ticket 221595229 — 29 documents removed, none
+remaining, rebuild exclusion confirmed by the ledger.
+
+## 3. When is it stale?
+
+Exemplars decay differently from policy: nothing tells you they are wrong, because they were
+right when they were written. Two decay modes matter.
+
+**Policy changed underneath them.** Measured 2026-08-02: 69 exemplars state the 30-day return
+window correctly and 2 state 60 days. That ratio is fine. It stops being fine the first time a
+published number changes, at which point every exemplar quoting the old one is actively wrong
+teaching material. **Rebuild whenever a policy number changes** — a window, a fee, a warranty
+term — and do not wait for a schedule.
+
+**Precedent drift.** 322 exemplars offer a discount, 76 of them at 40% or more, against a
+published policy that says significant discounts are not possible. Both are true in context —
+the policy line is about promotional discounting, the exemplars are goodwill remedies for
+faulty goods — but the corpus teaches "discounts happen" more loudly than the policy says they
+do not. Eval class J (`j-precedent-pressure`) is the guard, and it is blocking.
+
+**Otherwise: quarterly.** Support language drifts slowly, and each rebuild costs a few dollars
+of embeddings and roughly an hour. There is no argument for more often.
+
+## 4. Before turning exemplars on
+
+In order, because each one can veto the next:
+
+1. **Does the corpus earn its exposure?** Compare drafts with and without, using a same-config
+   control run to separate exemplar effect from model nondeterminism:
+   `--ticket-topk 3` against `--ticket-topk 0`. If drafts do not measurably improve, delete the
+   index — the privacy exposure buys nothing.
+2. **Eval class J passes** with `--ticket-topk 3`. It is the only class that can see verbatim
+   reuse or precedent pressure, and it is meaningless at `0`.
+3. **D-3 signed off** by someone on the client side, over 300–500 exchanges rather than 50.
+   Four samples of fifty each found a new leak class no automated check could see; fifty is
+   0.3% of the corpus and a class absent from it means very little.
+4. **Flagged tickets removed** via §2, and the index count re-verified.
+
+Only then set `Retrieval__TicketTopK` to 3. As with every app setting, it restarts App Service
+and takes 70–90 seconds; poll `/v1/config` rather than trusting the CLI's return.
+
+## 5. Local copies
+
+Extraction and sanitising leave customer-derived text on whoever ran them:
+
+| File | Keep while |
+|---|---|
+| `data/exemplars.jsonl` | The rebuild is in progress; delete after `clean` is verified |
+| `data/exemplars.clean.jsonl` | It matches what is indexed |
+| `data/exemplars.deduped.jsonl` | Redaction rules may still change and need re-applying |
+| `data/exemplar-review-sample.md` | The reviewer has not finished; delete after sign-off |
+
+All are git-ignored. None should be emailed, moved into `docs/`, or published — the review
+sample especially, since its whole purpose is to concentrate the riskiest text in one file.
