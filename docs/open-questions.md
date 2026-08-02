@@ -351,7 +351,40 @@ support and is never quoted to a customer — but it will degrade internal retri
 
 ---
 
-## D-7 · Semantic ranking is metered, and the meter ran out — **needs a decision**
+## D-7 · ~~Semantic ranking is metered, and the meter ran out~~ **ANSWERED 2026-08-02**
+
+**Option 1 and option 3, together: billing enabled, and reranking cut to policy only.**
+
+Verified live rather than assumed — the service reports `semanticSearch: standard` on the
+`basic` SKU, and `KnowledgeRetriever` passes `rerank: true` for exactly one corpus.
+
+The fourfold cut was worth taking on its own terms, independent of billing. The gate scores
+policy and nothing else, so reranking templates, internal guidance and exemplars was buying
+rankings that nothing read. **One semantic query per draft, not four.**
+
+What that means for cost, arithmetically:
+
+| | |
+|---|---|
+| Semantic queries per draft | 1 (was 4) |
+| Free allowance | 1,000/month — now ~1,000 drafts rather than 250 |
+| Beyond free | roughly $1 per 1,000 queries, against the ~$75/month Basic tier already approved |
+
+At any plausible pilot volume this is single-digit dollars a month, and below the free
+allowance it is nothing. The exposure that mattered was never the price — it was an
+unhandled 402 taking drafting down, and that now has a fallback, a `/health` signal, and a
+gate that stands down rather than declining everything when it cannot score.
+
+**One risk stays open and is accepted:** eval runs spend the same meter as production. A full
+suite is ~51 semantic queries, and it was repeated eval runs that exhausted the month in the
+first place. Billing means this now costs money instead of causing an outage, which is the
+right trade, but bulk eval runs should not be treated as free. Separating them would mean a
+second search service — more standing cost than the problem justifies.
+
+<details>
+<summary>Original decision, kept for the reasoning</summary>
+
+### Semantic ranking is metered, and the meter ran out
 
 **Found the hard way on 2026-08-02: production drafting returned HTTP 500 for a period.**
 
@@ -397,3 +430,5 @@ free allowance last four times longer, and policy is the only corpus the gate sc
 
 **Until this is decided, eval runs consume the same meter as production.** That is the
 underlying problem — a test suite and the live product sharing a quota with no separation.
+
+</details>
