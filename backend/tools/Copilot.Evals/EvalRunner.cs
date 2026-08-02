@@ -81,7 +81,54 @@ public sealed class EvalRunner(
             _ => throw new InvalidOperationException($"Unhandled result: {result.GetType().Name}"),
         };
 
-        return new CaseResult(testCase, outcome, Assertions.Evaluate(testCase, outcome));
+        var assertions = Assertions.Evaluate(testCase, outcome).ToList();
+
+        if (testCase.Expect.NoPii == true)
+        {
+            assertions.Add(await SweepForPiiAsync(testCase, ticket, outcome, cancellationToken));
+        }
+
+        return new CaseResult(testCase, outcome, assertions);
+    }
+
+    /// <summary>
+    /// Retrieves the ticket exemplars this case would have used and sweeps them alongside the
+    /// draft. Deliberately queries the store directly rather than reading what the pipeline
+    /// passed to the model: the defect being hunted lives in the index, and it is a defect
+    /// even on a turn where nothing quoted it.
+    /// </summary>
+    private async Task<AssertionResult> SweepForPiiAsync(
+        EvalCase testCase,
+        TicketContext ticket,
+        DraftOutcome outcome,
+        CancellationToken cancellationToken)
+    {
+        var newest = ticket.Messages
+            .LastOrDefault(m => m is { FromAgent: false, IsInternalNote: false });
+        var queryText = string.Join(" ", new[] { ticket.Subject, newest?.Text }
+            .Where(part => !string.IsNullOrWhiteSpace(part)));
+
+        var chunks = string.IsNullOrWhiteSpace(queryText)
+            ? []
+            : await store.RetrieveAsync(
+                new KnowledgeQuery
+                {
+                    Text = queryText,
+                    Market = testCase.Market,
+                    Corpus = KnowledgeCorpus.Ticket,
+                    TopK = 10,
+                },
+                cancellationToken);
+
+        var findings = PiiSweep.Sweep(outcome.Body, chunks);
+        var detail = findings.Count == 0
+            ? ""
+            : string.Join("; ", findings.Select(f => $"{f.Pattern} in {f.Where} ({f.Sample})"));
+
+        return new AssertionResult(
+            $"no_pii(draft + {chunks.Count} ticket chunk(s), {PiiSweep.Patterns.Length} patterns)",
+            findings.Count == 0,
+            detail);
     }
 
     private static TicketContext LoadFixture(string directory, string name)

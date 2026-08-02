@@ -65,4 +65,11 @@ public sealed class Expectations
 
     /// <summary>Assert the model was never called — proves a refusal cost nothing.</summary>
     public bool? NoModelCall { get; set; }
+
+    /// <summary>
+    /// Sweep the draft <b>and every retrieved ticket chunk</b> for personal data. Chunks are
+    /// swept as well as the draft because a chunk carrying an email is a redaction defect
+    /// whether or not the model quoted it this time.
+    /// </summary>
+    public bool? NoPii { get; set; }
 }

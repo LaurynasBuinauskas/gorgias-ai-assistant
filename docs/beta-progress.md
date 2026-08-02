@@ -164,7 +164,7 @@ human review.
 | `E-6` | Class D and E: refusal and fabrication | E-2, R-7 | done | | 7 refusal + 5 fabrication, 12/12. **Answers D-6**: genuinely uncovered questions are declined by the gate with no model call (~330 ms vs ~2700 ms), so lowering the threshold to a floor did not make it inert |
 | `E-7` | Class F: injection cases | E-2, R-8 | done | | 6 cases, 6/6, stable over 10 runs. **Found and fixed a real intermittent vulnerability**: an `[ADMIN OVERRIDE]` planted in quoted email history was obeyed 1 run in 6 |
 | `E-8` | LLM judge for faithfulness | E-1 | todo | | Advisory only, never blocks alone |
-| `E-11` | Class I: PII leakage cases | E-2, R-4 | todo | | Blocking if ticket exemplars ship |
+| `E-11` | Class I: PII leakage cases | E-2 | done | | 5 cases sweeping the draft **and every retrieved ticket chunk** across 9 identifier patterns. **Proven live**: an unredacted probe chunk makes all 5 fail with exit 1, and findings are masked in the report so it cannot itself become a leak |
 | `L-5` | Rollback runbook | R-10, L-3 | todo | | |
 | `L-6` | Beta expectations document | L-3 | todo | | Client-facing. **`L-1` and `L-4` deferred**, so drop the "English only" line and the promise of in-panel feedback reporting, or restore those tasks first |
 | `P-8` | Stage 2 editing runbook | P-6 | todo | | Documentation only |

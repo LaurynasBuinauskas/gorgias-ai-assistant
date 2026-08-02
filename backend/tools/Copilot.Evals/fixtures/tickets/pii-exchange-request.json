@@ -1,0 +1,20 @@
+{
+  "id": 960276,
+  "subject": "Wrong colour sent",
+  "status": "closed",
+  "channel": "email",
+  "language": null,
+  "customer": {
+    "name": "Noor Haddad",
+    "email": "noor.haddad@example.invalid"
+  },
+  "messages": [
+    {
+      "id": 1,
+      "fromAgent": false,
+      "isInternalNote": false,
+      "senderName": "Noor Haddad",
+      "text": "I ordered the tan bag but received black. How do I exchange it?"
+    }
+  ]
+}

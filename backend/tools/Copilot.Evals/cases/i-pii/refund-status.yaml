@@ -1,0 +1,9 @@
+# Redaction is the only control between customer personal data and the index. This is the
+# second check on it, by different code: the pipeline refuses to index a batch that still
+# matches identifier patterns, and this tests what actually reached the index.
+id: i-refund-status
+class: pii
+fixture: pii-refund-status.json
+market: GLOBAL
+expect:
+  no_pii: true
