@@ -78,6 +78,18 @@ PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"\b(?:\d{4}[ -]?){3}\d{4}\b")),
     ("EMAIL", "[EMAIL]", re.compile(
         r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")),
+    # A person's name carrying their job title. Third parties named in corporate gift orders
+    # — "Ben Majoe (Partner)" — are neither the ticket's customer nor its agent, so matching
+    # known names never sees them. The title is what makes this safe to redact by shape: a
+    # product name never arrives with "(Director)" after it.
+    ("CUSTOMER", "[CUSTOMER]", re.compile(
+        # The name must be capitalised; the title need not be — people write "Gemma Lloan,
+        # manager" as readily as "(Director)". Hence the scoped case-insensitive group.
+        r"\b[A-Z][\w'’-]{1,}(?:\s+[A-Z][\w'’-]{1,}){1,2}\s*"
+        r"[(,]\s*(?i:Director|Manager|CEO|CFO|CTO|COO|President|Vice President|Partner|Founder"
+        r"|Head of [\w\s]{2,20}|Chair(?:man|woman)?|Advis[eo]r|Principal)\b\)?"
+        r"|\b[A-Z]{2,}(?:\s+[A-Z]{2,}){1,2}\s+"
+        r"(?:DIRECTOR|MANAGER|CEO|PRESIDENT|PARTNER|FOUNDER|CHAIRMAN)\b")),
     ("ADDRESS", "[ADDRESS]", re.compile(
         # "14 Alderney Street" — number, name, type.
         rf"\b\d{{1,5}}[a-z]?[,\s]+[\w'’.-]+(?:\s+[\w'’.-]+)?\s+(?:{STREET_TYPES})\b"
@@ -117,7 +129,8 @@ PLACEHOLDER = re.compile(
 # "how we answer this" teaches the model nothing except how to pad.
 QUOTED_CHAIN = re.compile(
     r"^\s*-{3,}\s*(?:Forwarded message|Original Message|Ursprüngliche Nachricht)"
-    r"|^\s*From:\s.{0,200}?\bSent:"
+    # Unanchored: a reply often runs the quoted header onto the end of the last sentence.
+    r"|From:\s.{0,200}?\bSent:"
     r"|^\s*(?:Von|De|Da):\s.{0,200}?\b(?:Gesendet|Envoyé|Enviado|Inviato):"
     r"|^.{0,120}?\b(?:wrote|schrieb|a écrit|escribió|ha scritto|kirjoitti|schreef):\s*$"
     # Order-confirmation and shipping tables.
@@ -129,7 +142,11 @@ QUOTED_CHAIN = re.compile(
     r"|\bThis e-?mail(?: transmission)?(?: and any attachments)? may contain"
     r"|\bmay contain confidential|\bprivileged information|\bintended recipient"
     r"|Šiame pranešime esanti informacija"
-    r"|Diese E-?Mail (?:kann|enthält) vertrauliche",
+    r"|Diese E-?Mail (?:kann|enthält) vertrauliche"
+    # Regulated-industry disclaimers, which arrive as several hundred words naming the sender's
+    # employer, licence numbers and awards. Rare, but each one is a dossier on one person.
+    r"|\bSecurities and advisory services|\bRegistered Investment Advis|\bmember FINRA"
+    r"|\bInsurance License|\bnot a guarantee of future",
     re.IGNORECASE | re.MULTILINE)
 
 # A corporate signature written on one line, delimited by pipes rather than newlines:
@@ -160,6 +177,27 @@ SIGNATURE_START = re.compile(
     r"saludos|atentamente|"
     r"cordiali saluti|distinti saluti|"
     r"met vriendelijke groet(?:en)?)\s*[,.!]?\s*$",
+    re.IGNORECASE)
+
+
+# Text around an engraving instruction, where a third party's name tends to appear.
+ENGRAVING_CONTEXT = re.compile(
+    r"\b(?:engrav\w*|gravur\w*|monogram\w*|initials)\b[^.\n]{0,70}", re.IGNORECASE)
+
+NAME_PAIR = re.compile(r"\b[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}\b")
+
+# A capitalised pair starting with one of these is a sentence, not a person — "The Divine",
+# "Please Note". Without this the withhold fires on the product names it exists to protect.
+NAME_LEAD_STOPWORD = re.compile(
+    r"^(?:The|This|That|These|Those|Your|Our|Their|His|Her|Please|Thank|Thanks|Kind|Best"
+    r"|Dear|Hello|With|From|Sent|Font|Style|Order|Both|Same|Also|Just|Only|Would|Could|Can"
+    r"|Der|Die|Das|Ihre|Ihr|Mit|Vielen|Sehr|Guten)\b")
+
+# Typeface and product names have the same shape as a person's name and must not trigger a
+# withhold — losing them would defeat the purpose of keeping personalisation exemplars at all.
+FONT_OR_PRODUCT = re.compile(
+    r"\b(?:Monotype|Engravers|Times New|Corsiva|Corsica|Script MT|Edwardian|Lucida|Brush"
+    r"|Divine Comedy|Madame Bovary|Dark Brown|Light Brown|Leather|Style|Font|Roman|Italic)\b",
     re.IGNORECASE)
 
 
@@ -211,6 +249,30 @@ def residual_identifiers(text: str) -> list[Finding]:
         for match in pattern.finditer(masked):
             findings.append(Finding(kind, match.group(0).strip()))
     return findings
+
+
+def engraved_third_party_name(text: str) -> str | None:
+    """Return the phrase suggesting a third party's name is being engraved, or None.
+
+    This is a *withholding* check, not a redaction rule, and the distinction is the point.
+    Personalisation orders carry the names of people who are neither the customer nor the
+    agent — "please engrave the name Benedict Msuya" — so name matching cannot reach them, and
+    detecting arbitrary names by shape would take product names with it. "The Divine Comedy",
+    "Madame Bovary Red" and "Monotype Corsiva" all sit beside engraving words and are precisely
+    what these exemplars exist to teach.
+
+    So the affected exchanges are dropped instead. They are 1.7 % of the corpus and roughly a
+    tenth of personalisation exchanges; the rest of that topic is kept.
+    """
+    # Whitespace is normalised first. The context window stops at a line break, so without this
+    # the same exchange withholds or does not depending on where the original mail wrapped.
+    for match in ENGRAVING_CONTEXT.finditer(re.sub(r"\s+", " ", text)):
+        for name in NAME_PAIR.finditer(match.group(0)):
+            candidate = name.group(0)
+            if NAME_LEAD_STOPWORD.match(candidate) or FONT_OR_PRODUCT.search(candidate):
+                continue
+            return candidate
+    return None
 
 
 def _redact_names(text: str, known_names: list[str]) -> str:

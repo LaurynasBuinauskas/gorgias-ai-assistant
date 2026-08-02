@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from redaction import redact, residual_identifiers  # noqa: E402
+from redaction import engraved_third_party_name, redact, residual_identifiers  # noqa: E402
 
 # Below this an exchange no longer carries a question and an answer worth retrieving.
 MIN_QUESTION_CHARS = 20
@@ -46,7 +46,7 @@ def main() -> int:
     print(f"read {len(rows):,} exchange(s)")
 
     kept: list[dict] = []
-    changed = dropped_short = dropped_residual = 0
+    changed = dropped_short = dropped_residual = dropped_engraved = 0
 
     for row in rows:
         question, answer = redact(row["question"]), redact(row["answer"])
@@ -58,7 +58,11 @@ def main() -> int:
             dropped_short += 1
             continue
 
-        if residual_identifiers(f"{question}\n{answer}"):
+        combined = f"{question}\n{answer}"
+        if engraved_third_party_name(combined):
+            dropped_engraved += 1
+            continue
+        if residual_identifiers(combined):
             dropped_residual += 1
             continue
 
@@ -66,6 +70,7 @@ def main() -> int:
 
     print(f"  re-redacted        {changed:,}")
     print(f"  dropped, too short {dropped_short:,}  (quoted chain was the whole message)")
+    print(f"  dropped, engraved  {dropped_engraved:,}  (third party's name on a gift)")
     print(f"  dropped, residual  {dropped_residual:,}  (fail-closed check)")
     print(f"  kept               {len(kept):,}")
 

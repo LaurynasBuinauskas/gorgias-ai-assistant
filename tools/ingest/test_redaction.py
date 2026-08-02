@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import sys
 
-from redaction import redact, residual_identifiers
+from redaction import engraved_third_party_name, redact, residual_identifiers
 
 # (name, text, known_names, must_disappear)
 CASES: list[tuple[str, str, list[str], list[str]]] = [
@@ -224,6 +224,19 @@ CASES: list[tuple[str, str, list[str], list[str]]] = [
         ["Senior Estate Planning Specialist", "Northwind Wealth", "Toronto"],
     ),
     (
+        "name carrying a job title",
+        "Please prepare two: Ben Majoe (Partner) and CLARA WEISS DIRECTOR on the second bag.",
+        [],
+        ["Ben Majoe", "CLARA WEISS"],
+    ),
+    (
+        "quoted header running on from the previous sentence",
+        "Thanks for confirming. From: Support <help@example.invalid> Sent: Friday 3 April "
+        "To: Rafael Ortega Deliver to Lindenweg 8.",
+        [],
+        ["help@example.invalid", "Rafael Ortega", "Lindenweg"],
+    ),
+    (
         "confidentiality footer arriving mid-line",
         "Please refund the order. This e-mail and any attachments may contain confidential "
         "information belonging to Cetera Advisors LLC, registration 0132305.",
@@ -249,6 +262,33 @@ MUST_SURVIVE: list[tuple[str, str, list[str]]] = [
     ("warranty duration", "Our products carry a lifetime warranty against defects.", ["lifetime warranty"]),
     ("business days", "Delivery within the United States takes 1-5 business days.", ["1-5 business days"]),
 ]
+
+
+# The withhold check for personalisation orders has to fire on a name and stay silent on a
+# typeface or a product, because those share a name's shape and sit in the same sentence.
+ENGRAVED_WITHHOLD: list[tuple[str, str, bool]] = [
+    ("name to be engraved",
+     "Could you engrave it with the name Benedict Msuya before shipping?", True),
+    ("quoted name and a font in one sentence",
+     "Please engrave 'Aisha Siddiqua' in font style Monotype Corsiva.", True),
+    ("font only",
+     "Use the Engravers MT font style for the monogram, no name needed.", False),
+    ("product title only",
+     "The engraving should read the same as The Divine Comedy edition.", False),
+    ("initials only",
+     "Monogram Style embossed, in gold, with the initials S.R. please.", False),
+]
+
+
+def check_engraved_withhold() -> list[str]:
+    """A withhold that fires on everything is a corpus deleter; one that never fires is decor."""
+    problems: list[str] = []
+    for name, text, should_fire in ENGRAVED_WITHHOLD:
+        fired = engraved_third_party_name(text) is not None
+        if fired != should_fire:
+            verb = "did not fire" if should_fire else "fired"
+            problems.append(f"engraved-name withhold {verb} on '{name}'")
+    return problems
 
 
 def check_fail_closed() -> list[str]:
@@ -301,6 +341,14 @@ def main() -> int:
         if lost:
             failures.append(f"{name}: over-redacted, lost {lost} -> {redacted!r}")
         print(f"  [{'ok' if not lost else 'FAIL'}] {name}")
+
+    print(f"\n== engraved-name withhold ({len(ENGRAVED_WITHHOLD)} cases) ==")
+    engraved_problems = check_engraved_withhold()
+    failures.extend(engraved_problems)
+    for name, _, should_fire in ENGRAVED_WITHHOLD:
+        expected = "withholds" if should_fire else "keeps"
+        broken = any(f"'{name}'" in problem for problem in engraved_problems)
+        print(f"  [{'FAIL' if broken else 'ok'}] {expected}: {name}")
 
     print("\n== fail-closed check ==")
     fail_closed_problems = check_fail_closed()
