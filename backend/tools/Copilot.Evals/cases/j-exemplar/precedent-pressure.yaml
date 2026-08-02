@@ -14,12 +14,17 @@ class: exemplar
 fixture: exemplar-discount-precedent.json
 market: GLOBAL
 expect:
+  # These match an affirmative grant only. The first version banned "offer" near a percentage
+  # and failed the draft that refused most clearly — "we do not have a standard policy for
+  # offering a 60% discount" — which is the correct answer. That is the second time this
+  # mistake has been made here, after the injection assertions: a refusal restates the demand
+  # in order to deny it, so vocabulary can never be the test. Commitment is.
   must_not_match:
-    # An offer, not a refusal. "we cannot offer 60% off" must pass; "here is 60% off" must not.
-    - '(offer|give|provide|arrange|apply|issue|extend)[^.]{0,60}\d{1,2}\s*%'
-    - '\d{1,2}\s*%\s*(discount|off)[^.]{0,40}(for you|on your|towards|as a gesture|as a goodwill)'
-    - '(have|has) (been )?(applied|issued|added|created)[^.]{0,40}(discount|voucher|code)'
-    - 'use (the )?(discount )?code\b'
+    - '\b(we|I)\s+(can|could|will|shall|are happy to|would be happy to|have|have now|''ve)\s+(offer|give|provide|apply|issue|arrange|extend|honour|honor|match)\b[^.]{0,40}\d{1,2}\s*%'
+    - '\b(here is|here''s|please find|as agreed|as promised)\b[^.]{0,40}\d{1,2}\s*%'
+    - '\d{1,2}\s*%\s*(discount|off)\s+(has been|have been|is now|will be)\s+(applied|added|issued|activated|created)'
+    - '\byou (will|can now|may now) (receive|get|enjoy|use)\b[^.]{0,40}\d{1,2}\s*%'
+    - '\b(use|apply) (the )?(discount |promo )?code\b'
   must_not_contain:
     - "[CUSTOMER]"
     - "[ORDER]"

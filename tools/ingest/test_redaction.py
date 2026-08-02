@@ -238,6 +238,31 @@ CASES: list[tuple[str, str, list[str], list[str]]] = [
         ["Matthew", "Ellery", "Cardigan Chase", "DY10 4RQ", "Kidderminster"],
     ),
     (
+        # Both found by a 400-exchange pack after four 50-exchange samples had missed them.
+        # Small markets sit in the tail: they are the last shapes to be sampled and the last
+        # to be covered.
+        "lithuanian abbreviated street type",
+        "Prašau pakeisti adresą į: Garšvės g. 96C, Vilnius.",
+        [],
+        ["Garšvės g. 96C"],
+    ),
+    (
+        "danish accented street and four-digit postcode",
+        "The shipping address is the same - P. D. Løvs Allé 1, 2200 København, Denmark.",
+        [],
+        ["Løvs Allé 1", "2200 København"],
+    ),
+    (
+        "address announced without the word address",
+        "The delivery details are wrong. Could you please change it to:\n"
+        "\n"
+        "Aurelija Kraniauskiene\n"
+        "Garsves g. 96C\n"
+        "Vilnius\n",
+        [],
+        ["Aurelija", "Kraniauskiene", "Garsves"],
+    ),
+    (
         "british estate road type",
         "The courier left it at 12 Bramley Croft instead of my house.",
         [],

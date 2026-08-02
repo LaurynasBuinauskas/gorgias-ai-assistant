@@ -44,7 +44,23 @@ STREET_TYPES = (
     r"calle|avenida|plaza|paseo|carrer|"
     r"straat|laan|plein|gracht|kade|singel|dijk|hof|park|"
     r"gatan|vägen|väg|"
+    # Accented forms. "P. D. Løvs Allé 1" survived because the list held only "allee".
+    r"all[ée]e?|"
     r"ulica|aleja"
+)
+
+# Lithuanian and Latvian write the street type as an abbreviation between name and number:
+# "Garšvės g. 96C". Nothing in the lists above has that shape, so a 400-exchange review sample
+# found one intact. Small markets sit in the tail — they are the last shapes to be sampled and
+# the last to be covered.
+ABBREVIATED_STREET = r"g|pr|al|iela|gatv[ėe]"
+
+# Types that stand as their own word between the name and the number, as Nordic and Dutch
+# addresses do. Kept separate from STREET_TYPES on purpose — that list contains ordinary
+# English nouns, which in this shape would swallow product names.
+NORDIC_STREET_TYPES = (
+    r"all[ée]e?|gatan|gata|gate|vej|vei|väg|vägen|veien|plads|torv|torget|"
+    r"straat|laan|plein|weg"
 )
 
 # Types that attach to the end of a compound street name rather than standing alone.
@@ -104,12 +120,26 @@ PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         # A compound street name with no number at all. Without this an address whose number
         # was already consumed — or simply written without one — leaves the street standing,
         # which with a city is enough to find a household.
-        rf"|\b[\w'’.-]{{3,}}(?:{COMPOUND_STREET_TYPES})\b",
+        rf"|\b[\w'’.-]{{3,}}(?:{COMPOUND_STREET_TYPES})\b"
+        # "Garšvės g. 96C" — name, abbreviated type, number. The number is required here: "g."
+        # is two characters and would otherwise match half the corpus.
+        rf"|\b[\w'’ėįųūžčšāēī.-]{{3,}}\s+(?:{ABBREVIATED_STREET})\.\s*\d{{1,5}}[a-z]?\b"
+        # "Løvs Allé 1" — name, spaced type, number. Deliberately a narrower type list than
+        # STREET_TYPES: that one holds English words like park, green, row and view, which in
+        # this shape would take product names with them.
+        rf"|\b[\w'’æøåäöüé.-]{{2,}}\s+(?:{NORDIC_STREET_TYPES})\s+\d{{1,5}}[a-z]?\b",
         re.IGNORECASE)),
     ("POSTCODE", "[POSTCODE]", re.compile(
         r"\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b"    # UK
         r"|\b\d{5}(?:-\d{4})?\b"                    # US ZIP, DE, ES, IT, FR
         r"|\b\d{4}\s?[A-Z]{2}\b"                    # NL
+        # DK, AT, BE, CH, NO write four digits followed by the town: "2200 København". A bare
+        # four-digit run is far too common to redact — it is a year, a price, an order count —
+        # so the town is required as the anchor.
+        # Same-line spacing only. `\s+` spans newlines, which made every four-digit number at
+        # the end of a line match the greeting on the next one — "2019\nHello". A postcode is
+        # never separated from its town by a line break.
+        r"|\b\d{4}[ ]{1,2}[A-ZÆØÅÄÖÜÉ][\wæøåäöüé-]{2,}\b"
         r"|\b[A-Z]\d[A-Z]\s?\d[A-Z]\d\b",           # CA
         re.IGNORECASE)),
     ("PHONE", "[PHONE]", re.compile(
@@ -182,6 +212,8 @@ ADDRESS_INTRO = re.compile(
     r"^.{0,90}?\b(?:shipping|delivery|billing|postal|home|new|correct)?\s*"
     r"address(?:es)?\s*(?:is|are|:)\s*:?\s*$"
     r"|^\s*(?:deliver|send|ship)\s+(?:it|this|them|the (?:parcel|order|item))?\s*to\s*:\s*$"
+    # "Could you please change it to:" — an announcement that does not use the word address.
+    r"|^.{0,90}?\b(?:change|update|correct|amend)\s+(?:it|this|the address)\s*to\s*:\s*$"
     r"|^\s*(?:Lieferadresse|Rechnungsadresse|Versandadresse|Adresse|Anschrift"
     r"|Adresse de livraison|Dirección|Indirizzo|Adres)\s*:?\s*$",
     re.IGNORECASE | re.MULTILINE)
