@@ -124,11 +124,32 @@ QUOTED_CHAIN = re.compile(
     r"|^\s*(?:Bestell(?:ü|ue)bersicht|Order summary|Résumé de la commande|Resumen del pedido)"
     r"|^\s*(?:Kundeninformationen|Customer information|Lieferadresse|Rechnungsadresse"
     r"|Shipping [Aa]ddress|Billing [Aa]ddress|Delivery [Aa]ddress)"
-    # Confidentiality footers.
-    r"|^.{0,80}?\b(?:This e-?mail transmission|may contain confidential"
-    r"|privileged information|Šiame pranešime esanti informacija"
-    r"|Diese E-?Mail (?:kann|enthält) vertrauliche)",
+    # Confidentiality footers. Deliberately unanchored: these arrive mid-line as often as at
+    # the start of one, and cutting from the phrase keeps whatever real message preceded it.
+    r"|\bThis e-?mail(?: transmission)?(?: and any attachments)? may contain"
+    r"|\bmay contain confidential|\bprivileged information|\bintended recipient"
+    r"|Šiame pranešime esanti informacija"
+    r"|Diese E-?Mail (?:kann|enthält) vertrauliche",
     re.IGNORECASE | re.MULTILINE)
+
+# A corporate signature written on one line, delimited by pipes rather than newlines:
+#
+#     Regards Priya | Senior Estate Planning Specialist  Northwind Wealth | Toronto, Ontario
+#
+# The line-based signature stripper cannot see these — there is no line whose whole content is
+# a sign-off. A second human review found one in the sample after the first round of fixes, and
+# it is the most identifying thing in the corpus: job title plus employer plus city is often
+# one person, and none of it matches an identifier pattern. 2.4 % of exchanges carry one.
+INLINE_SIGNOFF = re.compile(
+    r"\b(?:(?:kind|best|warm)\s+regards|regards|sincerely|thanks(?:\s+again)?|thank you|cheers"
+    r"|mit freundlichen gr[uü](?:ss|ß)en|viele gr[uü](?:ss|ß)e|cordialement|saludos"
+    r"|cordiali saluti|met vriendelijke groet(?:en)?)\b",
+    re.IGNORECASE)
+
+SIGNATURE_MARKERS = re.compile(
+    r"\b(?:Senior|Sr\.?|Junior|Jr\.?|Head of|Director|Manager|Specialist|Consultant|Broker"
+    r"|Analyst|Officer|President|Partner|Associate|Advis[eo]r|Coordinator|Executive"
+    r"|LLC|Ltd\.?|Inc\.?|GmbH|LLP|PLC|S\.A\.|B\.V\.|UAB|A/S|Oy)\b")
 
 # Lines below one of these are a signature block: whatever follows is identity, not content.
 SIGNATURE_START = re.compile(
@@ -160,6 +181,7 @@ def redact(text: str, known_names: list[str] | None = None) -> str:
     # real batch, as residual fragments like "e.@gmail.com".
     redacted = _strip_quoted_chain(text)
     redacted = _redact_signature_blocks(redacted)
+    redacted = _redact_inline_signatures(redacted)
 
     for _, placeholder, pattern in PATTERNS:
         redacted = pattern.sub(placeholder, redacted)
@@ -206,6 +228,23 @@ def _redact_names(text: str, known_names: list[str]) -> str:
     for value, placeholder in sorted(parts, key=lambda p: len(p[0]), reverse=True):
         text = re.sub(rf"\b{re.escape(value)}\b", placeholder, text, flags=re.IGNORECASE)
     return text
+
+
+def _redact_inline_signatures(text: str) -> str:
+    """Cut a pipe-delimited signature out of the middle of a line.
+
+    Both conditions are required — two or more pipes *and* a title or company marker. Pipes
+    alone appear in ordinary text and in tables; the pair is what distinguishes a signature
+    from a sentence, and the cost of guessing wrong is deleting a customer's actual question.
+    """
+    lines = []
+    for line in text.split("\n"):
+        if line.count("|") >= 2 and SIGNATURE_MARKERS.search(line):
+            signoff = INLINE_SIGNOFF.search(line)
+            cut = signoff.end() if signoff else line.index("|")
+            line = f"{line[:cut].rstrip()} [SIGNATURE]"
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def _strip_quoted_chain(text: str) -> str:

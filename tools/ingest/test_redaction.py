@@ -214,6 +214,23 @@ CASES: list[tuple[str, str, list[str], list[str]]] = [
         ["Lindenweg", "40213", "Duesseldorf", "ops@example.invalid"],
     ),
     (
+        # Found by a second human review, after the first round of fixes had been applied.
+        # Title plus employer plus city is often exactly one person, and none of it matches
+        # an identifier pattern — no automated check would ever have raised it.
+        "corporate signature written inline with pipes",
+        "How do I arrange an exchange? Regards Priya | Senior Estate Planning Specialist  "
+        "Northwind Wealth | Toronto, Ontario | Tel: 416 555 0142",
+        [],
+        ["Senior Estate Planning Specialist", "Northwind Wealth", "Toronto"],
+    ),
+    (
+        "confidentiality footer arriving mid-line",
+        "Please refund the order. This e-mail and any attachments may contain confidential "
+        "information belonging to Cetera Advisors LLC, registration 0132305.",
+        [],
+        ["Cetera Advisors LLC", "0132305"],
+    ),
+    (
         "order confirmation table dropped wholesale",
         "Thanks for the update!\n"
         "Shipping Address\n"
