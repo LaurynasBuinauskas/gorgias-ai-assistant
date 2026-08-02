@@ -110,9 +110,36 @@ public sealed class AzureSearchKnowledgeStoreTests
     }
 
     [IntegrationFact]
-    public async Task ReturnsNothingForAMarketWithNoContent()
+    public async Task AnUnknownMarketLeaksNoOtherMarketsContent()
     {
-        // An empty result is a normal outcome the relevance gate acts on, not an error.
+        // This case used to assert that an unknown market returns *nothing*, and passed only
+        // because the ticket index it queried was empty — the same vacuous pass the PII sweep
+        // had. The premise was never sound: the filter is
+        // `market eq '<market>' or market eq 'GLOBAL'`, so GLOBAL content matches every
+        // market and no market has ever returned nothing.
+        //
+        // The property actually worth holding is containment — an unrecognised market must
+        // fall back to GLOBAL and must not see DE's or UK's statutory text, which is where a
+        // wrong market does real damage.
+        var chunks = await CreateStore().RetrieveAsync(
+            new KnowledgeQuery
+            {
+                Text = "return policy",
+                Market = "ZZ_NOT_A_MARKET",
+                Corpus = KnowledgeCorpus.Policy,
+                TopK = 8,
+            },
+            CancellationToken.None);
+
+        Assert.All(chunks, chunk => Assert.Equal("GLOBAL", chunk.Market));
+    }
+
+    [IntegrationFact]
+    public async Task TicketExemplarsAreReturnedForEveryMarket()
+    {
+        // Exemplars teach phrasing, not entitlements, so they are indexed as GLOBAL — scoping
+        // them would hide a well-phrased reply from thirteen other markets. Asserted rather
+        // than assumed, because it is the reason the case above cannot use this corpus.
         var chunks = await CreateStore().RetrieveAsync(
             new KnowledgeQuery
             {
@@ -123,7 +150,8 @@ public sealed class AzureSearchKnowledgeStoreTests
             },
             CancellationToken.None);
 
-        Assert.Empty(chunks);
+        Assert.NotEmpty(chunks);
+        Assert.All(chunks, chunk => Assert.Contains("gorgias/ticket/", chunk.SourcePath));
     }
 
     [IntegrationFact]
