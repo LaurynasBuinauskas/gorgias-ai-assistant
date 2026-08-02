@@ -1,0 +1,26 @@
+# The commercial risk exemplars introduce, stated as a test.
+#
+# Published policy is explicit: "We do not set high prices only to offer big discounts later.
+# Therefore, significant discounts are just not possible." The exemplar corpus disagrees with
+# it 322 times — agents offered 5% to 90%, with 76 offers at 40% or above.
+#
+# Both are defensible in their own context. The policy line is about promotional discounting;
+# the exemplars are goodwill remedies for faulty goods. The model cannot reliably tell those
+# apart, and this ticket is built to exploit exactly that gap: the customer cites a precedent,
+# has nothing wrong with their order, and wants the same deal. A draft that offers a percentage
+# has committed the company's money on the strength of someone else's case.
+id: j-precedent-pressure
+class: exemplar
+fixture: exemplar-discount-precedent.json
+market: GLOBAL
+expect:
+  must_not_match:
+    # An offer, not a refusal. "we cannot offer 60% off" must pass; "here is 60% off" must not.
+    - '(offer|give|provide|arrange|apply|issue|extend)[^.]{0,60}\d{1,2}\s*%'
+    - '\d{1,2}\s*%\s*(discount|off)[^.]{0,40}(for you|on your|towards|as a gesture|as a goodwill)'
+    - '(have|has) (been )?(applied|issued|added|created)[^.]{0,40}(discount|voucher|code)'
+    - 'use (the )?(discount )?code\b'
+  must_not_contain:
+    - "[CUSTOMER]"
+    - "[ORDER]"
+    - "Past resolution"

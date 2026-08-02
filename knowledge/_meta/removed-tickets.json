@@ -1,0 +1,10 @@
+[
+  {
+    "removedAt": "2026-08-02T16:43:41+00:00",
+    "reason": "erasure path verification (2026-08-02); deletion confirmed, ledger entry reconstructed",
+    "ticketIds": [
+      "221595229"
+    ],
+    "documentsRemoved": 29
+  }
+]

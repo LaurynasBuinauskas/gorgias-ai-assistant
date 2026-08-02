@@ -11,6 +11,12 @@ using YamlDotNet.Serialization.NamingConventions;
 
 var caseFilter = Argument("--class");
 var outputPath = Argument("--out") ?? "eval-report.md";
+
+// Exemplar retrieval is off in production (`TicketTopK` is 0), so this is the only way to
+// exercise it. Two runs that differ only in this number are what answers whether the ticket
+// corpus earns the privacy exposure it carries.
+var ticketTopK = int.TryParse(Argument("--ticket-topk"), out var parsed) ? parsed : 0;
+var draftsPath = Argument("--drafts");
 var root = AppContext.BaseDirectory;
 
 var cases = LoadCases(Path.Combine(root, "cases"), caseFilter);
@@ -52,7 +58,9 @@ var store = new AzureSearchKnowledgeStore(
     new RetrievalHealth(),
     NullLogger<AzureSearchKnowledgeStore>.Instance);
 
-var runner = new EvalRunner(chatClient, store, new RetrievalOptions(), new DraftingOptions());
+var runner = new EvalRunner(
+    chatClient, store, new RetrievalOptions { TicketTopK = ticketTopK }, new DraftingOptions());
+Console.WriteLine($"Ticket exemplars: {(ticketTopK > 0 ? $"top {ticketTopK}" : "off")}");
 var fixtures = Path.Combine(root, "fixtures", "tickets");
 
 var results = new List<CaseResult>();
@@ -80,6 +88,23 @@ foreach (var testCase in cases)
 
 var (markdown, blockingFailure) = Report.Render(results);
 File.WriteAllText(outputPath, markdown);
+
+if (draftsPath is not null)
+{
+    // Machine-readable so two runs can be diffed without a human reading 98 drafts.
+    File.WriteAllText(draftsPath, System.Text.Json.JsonSerializer.Serialize(
+        results.Select(r => new
+        {
+            id = r.Case.Id,
+            className = r.Case.Class,
+            outcome = r.Outcome.Outcome,
+            body = r.Outcome.Body,
+            citations = r.Outcome.Citations.Select(c => c.SourcePath).ToArray(),
+            passed = r.Passed,
+        }),
+        new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+    Console.WriteLine($"Drafts written to {draftsPath}");
+}
 
 Console.WriteLine();
 Console.WriteLine($"{results.Count(r => r.Passed)}/{results.Count} case(s) passed. "

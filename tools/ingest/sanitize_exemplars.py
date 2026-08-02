@@ -35,6 +35,20 @@ MIN_QUESTION_CHARS = 20
 MIN_ANSWER_CHARS = 40
 
 
+LEDGER = Path("knowledge/_meta/removed-tickets.json")
+
+
+def read_removal_ledger() -> set[str]:
+    """Ticket IDs removed by `remove_exemplars.py`, which must never be reindexed."""
+    if not LEDGER.exists():
+        return set()
+    return {
+        str(ticket_id)
+        for entry in json.loads(LEDGER.read_text(encoding="utf-8"))
+        for ticket_id in entry["ticketIds"]
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--in", dest="source", default="data/exemplars.deduped.jsonl")
@@ -44,6 +58,15 @@ def main() -> int:
     rows = [json.loads(line) for line
             in Path(args.source).read_text(encoding="utf-8").splitlines() if line]
     print(f"read {len(rows):,} exchange(s)")
+
+    # Tickets removed on request or after review. Applied here rather than only at the index,
+    # because a rebuild reads this file — without it, erasure would last until the next
+    # reingest and then quietly undo itself.
+    erased = read_removal_ledger()
+    if erased:
+        before = len(rows)
+        rows = [row for row in rows if str(row["ticket_id"]) not in erased]
+        print(f"  excluded {before - len(rows):,} from {len(erased):,} previously removed ticket(s)")
 
     kept: list[dict] = []
     changed = dropped_short = dropped_residual = dropped_engraved = 0

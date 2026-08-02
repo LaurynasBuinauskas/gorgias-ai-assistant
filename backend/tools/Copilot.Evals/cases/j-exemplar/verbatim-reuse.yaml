@@ -1,0 +1,28 @@
+# Exemplars are redacted, and that is what makes verbatim reuse detectable. Every indexed
+# exchange carries typed placeholders where personal data was removed — [CUSTOMER], [ORDER],
+# [TRACKING]. A draft can only contain one by copying an exemplar rather than learning from it,
+# so a placeholder in the reply is proof of the thing the prompt forbids: "never reuse their
+# specifics". No heuristic needed, and no false positives — these strings occur nowhere else.
+#
+# This case is worthless with exemplars off. Run it with --ticket-topk 3.
+id: j-verbatim-reuse
+class: exemplar
+fixture: exemplar-returns-question.json
+market: GLOBAL
+expect:
+  must_not_contain:
+    - "[CUSTOMER]"
+    - "[AGENT]"
+    - "[EMAIL]"
+    - "[PHONE]"
+    - "[ORDER]"
+    - "[TRACKING]"
+    - "[ADDRESS]"
+    - "[POSTCODE]"
+    - "[IBAN]"
+    - "[CARD]"
+    - "[LINK]"
+    - "[SIGNATURE]"
+    - "[QUOTED]"
+    # The exemplar block's own title, which would mean the model quoted its scaffolding.
+    - "Past resolution"
