@@ -34,6 +34,10 @@ NUMBER_WORDS = (
 STREET_TYPES = (
     r"street|st\.?|road|rd\.?|avenue|ave\.?|lane|ln\.?|drive|dr\.?|way|close|court|ct\.?|"
     r"boulevard|blvd\.?|place|pl\.?|terrace|square|sq\.?|"
+    # British estate-road types. "Cardigan Chase" reached the index because this list stopped
+    # at the obvious half-dozen; residential streets in the UK rarely use those.
+    r"chase|crescent|cres\.?|croft|mews|rise|grove|gardens|gdns\.?|green|walk|row|hill|"
+    r"view|meadow|meadows|fields|wharf|quay|parade|broadway|circus|vale|dene|copse|spinney|"
     r"stra(?:ss|ß)e|str\.?|platz|weg|gasse|allee|ring|damm|ufer|"
     r"rue|chemin|impasse|quai|"
     r"via|viale|piazza|corso|largo|"
@@ -168,6 +172,20 @@ SIGNATURE_MARKERS = re.compile(
     r"|Analyst|Officer|President|Partner|Associate|Advis[eo]r|Coordinator|Executive"
     r"|LLC|Ltd\.?|Inc\.?|GmbH|LLP|PLC|S\.A\.|B\.V\.|UAB|A/S|Oy)\b")
 
+# "My shipping address is:" — what follows is an address block, whatever shape it takes.
+#
+# Enumerating street types will always lag reality; a fourth review sample found "Cardigan
+# Chase" surviving because that list stopped at the obvious half-dozen. Where the customer
+# announces an address, the announcement is more reliable than the pattern, so the block that
+# follows is dropped without trying to parse it.
+ADDRESS_INTRO = re.compile(
+    r"^.{0,90}?\b(?:shipping|delivery|billing|postal|home|new|correct)?\s*"
+    r"address(?:es)?\s*(?:is|are|:)\s*:?\s*$"
+    r"|^\s*(?:deliver|send|ship)\s+(?:it|this|them|the (?:parcel|order|item))?\s*to\s*:\s*$"
+    r"|^\s*(?:Lieferadresse|Rechnungsadresse|Versandadresse|Adresse|Anschrift"
+    r"|Adresse de livraison|Dirección|Indirizzo|Adres)\s*:?\s*$",
+    re.IGNORECASE | re.MULTILINE)
+
 # Lines below one of these are a signature block: whatever follows is identity, not content.
 SIGNATURE_START = re.compile(
     r"^\s*(?:--+|__+|"
@@ -219,6 +237,7 @@ def redact(text: str, known_names: list[str] | None = None) -> str:
     # real batch, as residual fragments like "e.@gmail.com".
     redacted = _strip_quoted_chain(text)
     redacted = _redact_signature_blocks(redacted)
+    redacted = _redact_address_blocks(redacted)
     redacted = _redact_inline_signatures(redacted)
 
     for _, placeholder, pattern in PATTERNS:
@@ -290,6 +309,37 @@ def _redact_names(text: str, known_names: list[str]) -> str:
     for value, placeholder in sorted(parts, key=lambda p: len(p[0]), reverse=True):
         text = re.sub(rf"\b{re.escape(value)}\b", placeholder, text, flags=re.IGNORECASE)
     return text
+
+
+def _redact_address_blocks(text: str) -> str:
+    """Replace the lines following an address announcement with a single placeholder.
+
+    The block runs from the announcement to the first blank line after it has started, capped
+    at eight lines so a stray colon cannot swallow a message. Leading blank lines are skipped:
+    people press return after the colon.
+    """
+    lines = text.split("\n")
+    output: list[str] = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        output.append(line)
+        index += 1
+
+        if not ADDRESS_INTRO.match(line):
+            continue
+
+        while index < len(lines) and not lines[index].strip():
+            index += 1
+
+        consumed = 0
+        while index < len(lines) and lines[index].strip() and consumed < 8:
+            index += 1
+            consumed += 1
+        if consumed:
+            output.append("[ADDRESS]")
+
+    return "\n".join(output)
 
 
 def _redact_inline_signatures(text: str) -> str:

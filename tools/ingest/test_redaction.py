@@ -224,6 +224,26 @@ CASES: list[tuple[str, str, list[str], list[str]]] = [
         ["Senior Estate Planning Specialist", "Northwind Wealth", "Toronto"],
     ),
     (
+        # Found by a fourth review sample. "Chase" was not in the street-type list, so the
+        # address rule never fired, and the writer's first name was not the account name.
+        "address block announced by the customer",
+        "Replacement screws would be much appreciated. My shipping address is:\n"
+        "\n"
+        "Matthew Ellery\n"
+        "3 Cardigan Chase\n"
+        "Kidderminster DY10 4RQ\n"
+        "\n"
+        "Thanks for your help.",
+        [],
+        ["Matthew", "Ellery", "Cardigan Chase", "DY10 4RQ", "Kidderminster"],
+    ),
+    (
+        "british estate road type",
+        "The courier left it at 12 Bramley Croft instead of my house.",
+        [],
+        ["Bramley Croft"],
+    ),
+    (
         "name carrying a job title",
         "Please prepare two: Ben Majoe (Partner) and CLARA WEISS DIRECTOR on the second bag.",
         [],
