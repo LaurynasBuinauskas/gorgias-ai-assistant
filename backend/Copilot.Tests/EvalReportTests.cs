@@ -28,7 +28,11 @@ public sealed class EvalReportTests
         var (markdown, _) = Report.Render([Passing("j-verbatim-reuse", "exemplar")], ticketTopK: 3);
 
         Assert.DoesNotContain("NOT EXERCISED", markdown);
-        Assert.Contains("1/1 (100%)", markdown);
+        // Counts only, no percentage: `P0` renders "100%" under en-US and "100 %" with a
+        // non-breaking space under the invariant culture CI runs in, and asserting on the
+        // formatted percentage fails on Linux while passing on Windows.
+        Assert.Contains("1/1", markdown);
+        Assert.Contains("PASS", markdown);
     }
 
     [Fact]
