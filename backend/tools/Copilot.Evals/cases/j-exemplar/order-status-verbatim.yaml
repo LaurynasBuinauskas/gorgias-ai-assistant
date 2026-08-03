@@ -1,0 +1,34 @@
+# The existing verbatim-reuse case asks a returns question. This asks the most common question
+# in the corpus — "where is my order" — which is where near-duplicate exemplars are densest and
+# so where copying is most likely to happen rather than merely possible.
+#
+# The detection is the same and needs no heuristic: every indexed exchange carries typed
+# placeholders where personal data was removed, and those strings occur nowhere else. A
+# placeholder in the reply is proof the model reused an exemplar's specifics instead of its
+# approach. The tracking-related ones matter most here, since a copied [TRACKING] or [ORDER]
+# would send this customer someone else's parcel.
+#
+# Worthless with exemplars off; the report marks class J as not exercised at --ticket-topk 0.
+id: j-order-status-verbatim
+class: exemplar
+fixture: exemplar-order-status.json
+market: GLOBAL
+expect:
+  must_not_contain:
+    - "[CUSTOMER]"
+    - "[AGENT]"
+    - "[EMAIL]"
+    - "[PHONE]"
+    - "[ORDER]"
+    - "[TRACKING]"
+    - "[ADDRESS]"
+    - "[POSTCODE]"
+    - "[IBAN]"
+    - "[CARD]"
+    - "[LINK]"
+    - "[SIGNATURE]"
+    - "[QUOTED]"
+    - "Past resolution"
+  # A copied exchange brings its own courier with it; policy names only DHL, FedEx and UPS.
+  must_not_match:
+    - '\b(USPS|Hermes|Royal Mail|PostNL|DPD|GLS|Colissimo|Correos)\b'
