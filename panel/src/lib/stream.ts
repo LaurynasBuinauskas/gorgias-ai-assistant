@@ -13,12 +13,53 @@ export type TicketInfo = {
   readonly messageCount: number;
 };
 
+/**
+ * A source the draft leaned on. The backend has sent these on `done` since citations
+ * existed; the panel discarded them, so an agent reviewing a draft could not see whether it
+ * came from published policy or from someone else's ticket — which is the difference between
+ * a fact they can rely on and a precedent they should check.
+ */
+export type Citation = {
+  readonly label: string;
+  readonly sourcePath: string;
+  readonly market: string;
+  /** Derived from `sourcePath`, because how far to trust it depends on which. */
+  readonly kind: 'policy' | 'template' | 'ticket' | 'other';
+};
+
 export type StreamEvent =
   | { readonly kind: 'ticket'; readonly ticket: TicketInfo }
   | { readonly kind: 'delta'; readonly text: string }
-  | { readonly kind: 'done' }
+  | { readonly kind: 'done'; readonly citations: readonly Citation[] }
   | { readonly kind: 'insufficient'; readonly message: string }
   | { readonly kind: 'error'; readonly message: string };
+
+function citationKind(sourcePath: string): Citation['kind'] {
+  if (sourcePath.startsWith('gorgias/ticket/')) return 'ticket';
+  if (sourcePath.includes('/policy/')) return 'policy';
+  if (sourcePath.includes('/templates/')) return 'template';
+  return 'other';
+}
+
+/** Untrusted input: an API response is validated, never asserted. */
+function parseCitations(value: unknown): Citation[] {
+  if (!Array.isArray(value)) return [];
+
+  const citations: Citation[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const record = entry as Record<string, unknown>;
+    if (typeof record.sourcePath !== 'string' || typeof record.label !== 'string') continue;
+
+    citations.push({
+      label: record.label,
+      sourcePath: record.sourcePath,
+      market: typeof record.market === 'string' ? record.market : '',
+      kind: citationKind(record.sourcePath),
+    });
+  }
+  return citations;
+}
 
 export type DraftPayload = {
   readonly turns: readonly ChatTurn[];
@@ -129,7 +170,7 @@ function parseFrame(frame: string): StreamEvent | null {
     case 'delta':
       return typeof parsed.text === 'string' ? { kind: 'delta', text: parsed.text } : null;
     case 'done':
-      return { kind: 'done' };
+      return { kind: 'done', citations: parseCitations(parsed.citations) };
     case 'insufficient':
       return {
         kind: 'insufficient',

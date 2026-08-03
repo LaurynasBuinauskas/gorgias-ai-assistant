@@ -136,4 +136,58 @@ describe('streamDraft', () => {
       instruction: 'translate to English',
     });
   });
+
+  it('classifies citations by where they came from', async () => {
+    // The backend has always sent these; the panel discarded them. What an agent needs from
+    // this list is which claims came from published policy and which from someone else's
+    // ticket, so the kind is derived here rather than trusted from the wire.
+    mockFetch(
+      sseResponse([
+        'event: done\ndata: {"draftId":"d1","citations":[' +
+          '{"label":"P1","sourcePath":"knowledge/policy/DE/shipping-and-returns.md","market":"DE"},' +
+          '{"label":"T1","sourcePath":"knowledge/templates/order-status/late.md","market":"GLOBAL"},' +
+          '{"label":"X1","sourcePath":"gorgias/ticket/242012080","market":"GLOBAL"}]}\n\n',
+      ]),
+    );
+
+    const events = await collect(streamDraft('t', '1', { turns: [] }, undefined));
+    const done = events.find((event) => event.kind === 'done');
+
+    expect(done).toEqual({
+      kind: 'done',
+      citations: [
+        {
+          label: 'P1',
+          sourcePath: 'knowledge/policy/DE/shipping-and-returns.md',
+          market: 'DE',
+          kind: 'policy',
+        },
+        {
+          label: 'T1',
+          sourcePath: 'knowledge/templates/order-status/late.md',
+          market: 'GLOBAL',
+          kind: 'template',
+        },
+        { label: 'X1', sourcePath: 'gorgias/ticket/242012080', market: 'GLOBAL', kind: 'ticket' },
+      ],
+    });
+  });
+
+  it('survives a done event with missing or malformed citations', async () => {
+    // A type assertion is not validation, and this is the one field an older or a broken
+    // backend is most likely to omit.
+    mockFetch(
+      sseResponse([
+        'event: done\ndata: {"draftId":"d1"}\n\n',
+        'event: done\ndata: {"citations":[{"label":"P1"},"nonsense",null,{"sourcePath":"x"}]}\n\n',
+      ]),
+    );
+
+    const events = await collect(streamDraft('t', '1', { turns: [] }, undefined));
+
+    expect(events).toEqual([
+      { kind: 'done', citations: [] },
+      { kind: 'done', citations: [] },
+    ]);
+  });
 });

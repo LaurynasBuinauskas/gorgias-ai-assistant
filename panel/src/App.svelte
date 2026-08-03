@@ -9,7 +9,7 @@ import {
   type PanelState,
   reduce,
 } from './lib/state';
-import { streamDraft, type TicketInfo } from './lib/stream';
+import { type Citation, streamDraft, type TicketInfo } from './lib/stream';
 
 const TOKEN_KEY = 'copilot:token';
 // The one origin this panel exchanges messages with: the extension shell, or the dev harness.
@@ -51,6 +51,9 @@ let ticketInfo = $state<TicketInfo | null>(null);
 let instruction = $state('');
 let copiedIndex = $state<number | null>(null);
 let scroller = $state<HTMLElement | null>(null);
+// What the latest draft leaned on. Reset per run: sources from a previous draft shown
+// against a new one would be worse than showing none.
+let citations = $state<readonly Citation[]>([]);
 
 // Cancels the in-flight draft. Not reactive — nothing renders from it.
 let activeRun: AbortController | null = null;
@@ -155,6 +158,7 @@ async function run(newInstruction?: string) {
   // Pinned for the whole run: a reply belongs to the ticket it was requested for.
   const runTicketId = context.ticketId;
 
+  citations = [];
   const history = panel.status === 'unauthenticated' ? [] : panel.turns;
   dispatch(
     newInstruction ? { type: 'generate', instruction: newInstruction } : { type: 'generate' },
@@ -178,6 +182,7 @@ async function run(newInstruction?: string) {
       dispatch({ type: 'delta', text: event.text });
       void scrollToBottom();
     } else if (event.kind === 'done') {
+      citations = event.citations;
       dispatch({ type: 'completed' });
     } else if (event.kind === 'insufficient') {
       dispatch({ type: 'insufficient', message: event.message });
@@ -198,6 +203,22 @@ async function run(newInstruction?: string) {
 function send() {
   if (busy) return;
   run(instruction.trim() || undefined);
+}
+
+/**
+ * How a source should read to an agent skimming it. Published policy is something they can
+ * rely on; a past ticket is a precedent someone else set, which they may need to check —
+ * so the two are labelled differently rather than listed as one undifferentiated pile.
+ */
+function describeCitation(citation: Citation): string {
+  if (citation.kind === 'ticket') {
+    return `Past ticket #${citation.sourcePath.replace('gorgias/ticket/', '')}`;
+  }
+
+  const file = citation.sourcePath.split('/').pop()?.replace(/\.md$/, '') ?? citation.sourcePath;
+  const name = file.replace(/-/g, ' ');
+  const scope = citation.market && citation.market !== 'GLOBAL' ? ` (${citation.market})` : '';
+  return citation.kind === 'template' ? `Approved reply: ${name}${scope}` : `${name}${scope}`;
 }
 
 async function copy(text: string, index: number) {
@@ -316,6 +337,16 @@ function onComposerKeydown(event: KeyboardEvent) {
             </button>
           {/if}
         </div>
+        {#if citations.length > 0 && !busy}
+          <div class="sources">
+            <span class="sources-label">Based on</span>
+            {#each citations as citation (citation.label)}
+              <span class="source" class:from-ticket={citation.kind === 'ticket'}>
+                {describeCitation(citation)}
+              </span>
+            {/each}
+          </div>
+        {/if}
       </div>
     </footer>
   {/if}
@@ -629,5 +660,33 @@ function onComposerKeydown(event: KeyboardEvent) {
     color: #9ca3af;
     font-size: 0.8rem;
     margin: 0;
+  }
+
+  .sources {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+  }
+
+  .sources-label {
+    color: #9ca3af;
+    font-size: 0.75rem;
+  }
+
+  .source {
+    background: #f3f4f6;
+    border-radius: 999px;
+    color: #4b5563;
+    font-size: 0.72rem;
+    padding: 0.1rem 0.5rem;
+  }
+
+  /* A past ticket is a precedent someone else set, not something the company published.
+     Coloured differently so an agent can tell at a glance which kind they are trusting. */
+  .source.from-ticket {
+    background: #fef3c7;
+    color: #92400e;
   }
 </style>
