@@ -86,7 +86,7 @@ foreach (var testCase in cases)
     }
 }
 
-var (markdown, blockingFailure) = Report.Render(results);
+var (markdown, blockingFailure) = Report.Render(results, ticketTopK);
 File.WriteAllText(outputPath, markdown);
 
 if (draftsPath is not null)
@@ -115,6 +115,13 @@ Console.WriteLine($"{results.Count(r => r.Passed)}/{results.Count} case(s) passe
 Console.WriteLine(blockingFailure
     ? "FAIL: a release-blocking class is below threshold."
     : "PASS: every release-blocking class met its threshold.");
+
+if (ticketTopK <= 0 && cases.Any(c => string.Equals(c.Class, "exemplar", StringComparison.OrdinalIgnoreCase)))
+{
+    Console.WriteLine(
+        "NOTE: class J was not exercised — exemplars are off. Re-run with --ticket-topk 3 "
+        + "to test the ticket corpus.");
+}
 
 return blockingFailure ? 1 : 0;
 

@@ -38,11 +38,25 @@ public sealed record ClassThreshold(string Name, double Required, bool Blocking)
 
 public static class Report
 {
+    /// <summary>
+    /// The class whose cases only mean anything when ticket exemplars are retrieved. Its
+    /// assertions are that no exemplar's specifics reached the draft, so with the corpus
+    /// switched off they hold trivially — nothing was retrieved to leak.
+    /// </summary>
+    private const string ExemplarClass = "exemplar";
+
     /// <summary>Renders the run and reports whether any blocking class missed its threshold.</summary>
-    public static (string Markdown, bool BlockingFailure) Render(IReadOnlyList<CaseResult> results)
+    /// <param name="ticketTopK">
+    /// How many exemplars retrieval was asked for. At zero the exemplar class cannot fail, and
+    /// reporting it as a green blocking class would be the most misleading row in the table.
+    /// </param>
+    public static (string Markdown, bool BlockingFailure) Render(
+        IReadOnlyList<CaseResult> results,
+        int ticketTopK = 0)
     {
         var report = new StringBuilder();
         var blockingFailure = false;
+        var unexercised = new List<string>();
 
         report.AppendLine("# Policy adherence report");
         report.AppendLine();
@@ -58,6 +72,20 @@ public static class Report
             var passed = group.Count(r => r.Passed);
             var rate = (double)passed / group.Count();
             var met = rate >= threshold.Required;
+
+            // A class that cannot fail is not passing, and saying "PASS" here is how a green
+            // check earns trust it has not done anything to deserve.
+            if (string.Equals(group.Key, ExemplarClass, StringComparison.OrdinalIgnoreCase)
+                && ticketTopK <= 0)
+            {
+                unexercised.Add(threshold.Name);
+                report.AppendLine(
+                    $"| {threshold.Name} | — | {threshold.Required:P0} | "
+                    + $"{(threshold.Blocking ? "**yes**" : "no")} | "
+                    + "**NOT EXERCISED** — exemplars off (`--ticket-topk 0`) |");
+                continue;
+            }
+
             if (!met && threshold.Blocking)
             {
                 blockingFailure = true;
@@ -73,6 +101,15 @@ public static class Report
         report.AppendLine(blockingFailure
             ? "## Result: **FAIL** — a release-blocking class is below threshold."
             : "## Result: PASS — every release-blocking class met its threshold.");
+
+        if (unexercised.Count > 0)
+        {
+            report.AppendLine();
+            report.AppendLine(
+                $"> **{unexercised.Count} blocking class(es) were not exercised by this run:** "
+                + $"{string.Join(", ", unexercised)}. Re-run with `--ticket-topk 3` to test them. "
+                + "This run says nothing about the ticket exemplar corpus.");
+        }
 
         var failures = results.Where(r => !r.Passed).ToList();
         report.AppendLine();
