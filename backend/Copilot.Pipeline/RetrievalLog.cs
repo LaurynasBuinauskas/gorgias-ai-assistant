@@ -93,15 +93,20 @@ internal static class RetrievalLog
         ILogger logger,
         string draftId,
         bool emittedBlock,
-        IReadOnlyList<string> unresolved) =>
+        IReadOnlyList<string> unresolved,
+        string finishReason) =>
         logger.LogWarning(
-            "Draft {DraftId} cited nothing: sources block {BlockState}{Unresolved}. The agent "
-            + "will see a draft with no sources listed",
+            "Draft {DraftId} cited nothing: sources block {BlockState}{Unresolved}, model "
+            + "stopped because {FinishReason}. The agent will see a draft with no sources listed",
             draftId,
             emittedBlock ? "present" : "never emitted",
             unresolved.Count == 0
                 ? ""
-                : $", labels resolving to nothing: {string.Join(" ", unresolved)}");
+                : $", labels resolving to nothing: {string.Join(" ", unresolved)}",
+            // A response cut short at the token cap loses the sources block, because the block
+            // is the last thing written. That is a different defect from a model that chose not
+            // to write one, and until this was recorded the two were indistinguishable.
+            string.IsNullOrWhiteSpace(finishReason) ? "(not reported)" : finishReason);
 
     /// <summary>Chunk identity and score per hit — never the chunk's text.</summary>
     private static string Describe(IReadOnlyList<KnowledgeChunk> chunks) =>

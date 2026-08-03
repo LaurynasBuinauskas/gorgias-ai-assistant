@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Copilot.Domain;
 using Copilot.Knowledge;
 
@@ -13,6 +14,27 @@ namespace Copilot.Pipeline;
 /// </summary>
 public sealed class SourceSplitter
 {
+    /// <summary>
+    /// The delimiter as the model actually writes it, which is not always as it was asked.
+    ///
+    /// It was matched literally until a draft came back with `---\nSOURCES---`, the dashes and
+    /// the word split across a line break. An exact match missed it, so the whole block stayed
+    /// in the reply, no citation resolved, and the failure reported itself as "the model never
+    /// emitted a sources block" — which was untrue and sent the investigation the wrong way.
+    /// The agent would have seen a draft ending in `---SOURCES--- P2 P4` and no sources listed.
+    ///
+    /// Whitespace and a varying number of dashes are therefore tolerated. The model is being
+    /// asked for a marker, not a checksum.
+    /// </summary>
+    private static readonly Regex s_delimiter = new(
+        @"-{2,}\s*SOURCES\s*-{2,}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// Characters held back while streaming so a delimiter arriving in pieces is still
+    /// recognised. Comfortably longer than the delimiter and any whitespace inside it.
+    /// </summary>
+    private const int HoldBack = 32;
+
     private readonly StringBuilder _body = new();
     private readonly StringBuilder _sources = new();
     private string _pending = "";
@@ -29,11 +51,11 @@ public sealed class SourceSplitter
 
         _pending += text;
 
-        var marker = _pending.IndexOf(DraftPrompt.SourcesDelimiter, StringComparison.Ordinal);
-        if (marker >= 0)
+        var marker = s_delimiter.Match(_pending);
+        if (marker.Success)
         {
-            var emit = _pending[..marker];
-            _sources.Append(_pending[(marker + DraftPrompt.SourcesDelimiter.Length)..]);
+            var emit = _pending[..marker.Index];
+            _sources.Append(_pending[(marker.Index + marker.Length)..]);
             _pending = "";
             _inSources = true;
             _body.Append(emit);
@@ -41,7 +63,7 @@ public sealed class SourceSplitter
         }
 
         // Keep back enough to recognise a delimiter split across updates.
-        var safe = Math.Max(0, _pending.Length - DraftPrompt.SourcesDelimiter.Length);
+        var safe = Math.Max(0, _pending.Length - HoldBack);
         var ready = _pending[..safe];
         _pending = _pending[safe..];
         _body.Append(ready);

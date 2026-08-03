@@ -66,7 +66,8 @@ public sealed class DraftingPipeline(
         if (citations.Count == 0)
         {
             RetrievalLog.NoCitations(
-                logger, draftId, splitter.EmittedSourcesBlock, splitter.UnresolvedLabels);
+                logger, draftId, splitter.EmittedSourcesBlock, splitter.UnresolvedLabels,
+                response.FinishReason?.ToString() ?? "");
         }
         return new PipelineResult.Success(CreateDraft(draftId, ticket, body, citations));
     }
@@ -102,8 +103,14 @@ public sealed class DraftingPipeline(
         // The source list is held back rather than streamed: the agent copies what they see,
         // and labels are for review, not for the customer.
         var splitter = new SourceSplitter();
+        var finishReason = "";
         await foreach (var update in updates.WithCancellation(cancellationToken))
         {
+            if (update.FinishReason is { } reason)
+            {
+                finishReason = reason.ToString();
+            }
+
             if (update.Text is { Length: > 0 } text && splitter.Push(text) is { Length: > 0 } ready)
             {
                 yield return new DraftChunk.Delta(ready);
@@ -120,7 +127,8 @@ public sealed class DraftingPipeline(
         if (citations.Count == 0)
         {
             RetrievalLog.NoCitations(
-                logger, draftId, splitter.EmittedSourcesBlock, splitter.UnresolvedLabels);
+                logger, draftId, splitter.EmittedSourcesBlock, splitter.UnresolvedLabels,
+                finishReason);
         }
         yield return new DraftChunk.Sources(citations);
     }
