@@ -56,10 +56,13 @@ deliberately deferred.
 
 ## Blocking *only if* ticket exemplars are switched on
 
-They are currently **off** — `TicketTopK` is `0` and the retriever short-circuits without
-querying. Nothing below blocks a policy-only beta.
+**They are now ON.** `Retrieval__TicketTopK` was set to `3` on 2026-08-03 on the user's
+explicit instruction, verified via `exemplars: true` in `/v1/config`. This section is therefore
+live, and the first item in it is outstanding.
 
 - [ ] **Privacy review signed off** over **300–500** exchanges, not 50 — D-3.
+      **Outstanding at the time exemplars were enabled.** Recorded plainly rather than
+      reworded: this was decided with the review unsigned, not because the concern was met.
       `data/exemplar-review-pack.md` is drawn and waiting. Four separate samples of fifty each
       found a leak class no automated check could see, and the fourth found two more that the
       first three had missed, both from small markets. **A green PII eval class is not

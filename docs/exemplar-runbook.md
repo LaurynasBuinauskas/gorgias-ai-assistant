@@ -4,10 +4,28 @@ Operating the `tickets-v2` index: rebuilding it, removing someone from it, and d
 it is stale. Policy knowledge (`knowledge-v1`) is not covered here — it has no customer data
 and a different lifecycle.
 
-**Current state: exemplars are indexed but switched off.** `Retrieval:TicketTopK` is `0`, and
-`KnowledgeRetriever` short-circuits on `topK <= 0` without querying the store. No exemplar text
-reaches a draft. Turning them on is one app setting, and it must not happen before the review
-in `open-questions.md` D-3 is signed off.
+**Current state: exemplars are ON.** `Retrieval__TicketTopK` is `3` in App Service as of
+2026-08-03, set on the user's explicit instruction. Up to three past exchanges now reach the
+model on every draft.
+
+**This went ahead of D-3.** The privacy review of 400 exchanges in
+`data/exemplar-review-pack.md` is drawn and still unsigned. The four previous samples of fifty
+each found a leak class no automated check could see, and the fourth found two more the first
+three had missed — so the corpus is not known to be clean, and this is a decision taken with
+that outstanding, not a decision that the concern was resolved.
+
+Verify the state, in either direction, with `curl -s <api>/v1/config` and read `exemplars`.
+The setting restarts App Service; the flip on 2026-08-03 took 90 seconds to become observable.
+
+**To turn them off again** — the fastest lever, no deploy:
+
+```bash
+az webapp config appsettings set --name gorgias-assistant-api \
+  --resource-group gorgias-assistant-rg --settings Retrieval__TicketTopK=0
+```
+
+Then poll `/v1/config` until `exemplars` is `false`. `KnowledgeRetriever` short-circuits on
+`topK <= 0` without querying the store, so no exemplar text can reach a draft.
 
 **`tickets-v2` replaced `tickets-v1` on 2026-08-03.** It carries an extra field,
 `questionVector`, holding an embedding of the customer's question alone; the store matches the

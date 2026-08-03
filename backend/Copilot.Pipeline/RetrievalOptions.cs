@@ -21,7 +21,15 @@ public sealed class RetrievalOptions
     /// <summary>Retrieved separately and never placed in a quotable block.</summary>
     public int InternalTopK { get; set; } = 2;
 
-    /// <summary>Zero until `R-4` indexes closed tickets; querying an empty corpus buys nothing.</summary>
+    /// <summary>
+    /// Past resolved exchanges shown to the model as style references. Enabled on 2026-08-03;
+    /// `appsettings.json` sets 3 and App Service matches it.
+    ///
+    /// Zero disables the corpus outright — <see cref="KnowledgeRetriever"/> short-circuits on
+    /// `topK &lt;= 0` without querying the store — which makes this the rollback lever for
+    /// anything the ticket corpus causes. `/v1/config` reports `exemplars` so the state is
+    /// observable rather than assumed.
+    /// </summary>
     public int TicketTopK { get; set; }
 
     /// <summary>

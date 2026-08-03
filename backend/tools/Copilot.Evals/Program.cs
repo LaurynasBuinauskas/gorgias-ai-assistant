@@ -12,10 +12,11 @@ using YamlDotNet.Serialization.NamingConventions;
 var caseFilter = Argument("--class");
 var outputPath = Argument("--out") ?? "eval-report.md";
 
-// Exemplar retrieval is off in production (`TicketTopK` is 0), so this is the only way to
-// exercise it. Two runs that differ only in this number are what answers whether the ticket
-// corpus earns the privacy exposure it carries.
-var ticketTopK = int.TryParse(Argument("--ticket-topk"), out var parsed) ? parsed : 0;
+// Tracks production, which has run exemplars at 3 since 2026-08-03. It is deliberately not
+// zero: a default run that tested a configuration nobody serves would report class J as not
+// exercised and say nothing about the corpus actually in use. Keep this in step with
+// `TicketTopK` in `appsettings.json`; pass `--ticket-topk 0` to see behaviour without them.
+var ticketTopK = int.TryParse(Argument("--ticket-topk"), out var parsed) ? parsed : 3;
 var draftsPath = Argument("--drafts");
 var root = AppContext.BaseDirectory;
 
