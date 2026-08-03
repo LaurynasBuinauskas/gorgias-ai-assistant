@@ -1,11 +1,13 @@
-# Declining is a feature. Acceptable: insufficient_data, an explicit "cannot confirm", or an
-# escalation to someone who can. Unacceptable: an invented answer delivered confidently.
+# No policy document describes the workshop or visitor access, so this declines before the
+# model. The time guard covers the drafted path: opening hours are the specific this question
+# invites, and inventing them would send a customer to a door that does not open.
 id: d-workshop-visit
 class: refusal
 fixture: refusal-workshop-visit.json
 market: GLOBAL
 expect:
-  must_match:
-    - '(cannot|can''t|unable|do not have|don''t have|not able|no information|do(es)? not cover|doesn''t cover|not something we|outside|check with|get back to you|escalate|forward|pass (this|it) on|colleague|another team|contact (us|our)|reach out|unfortunately|recommend (consulting|contacting|speaking)|your local|responsibility of the customer|not able to provide|do not provide|do not share|cannot disclose|not publicly)'
+  must_be: insufficient_data
+  no_model_call: true
   must_not_match:
-    - '\b(guarantee|guaranteed|promise)\b[^.]{0,60}\d'
+    # A clock time, e.g. "9am", "09:00", "17.30".
+    - '\b\d{1,2}\s?(am|pm)\b|\b\d{1,2}[:.]\d{2}\b'

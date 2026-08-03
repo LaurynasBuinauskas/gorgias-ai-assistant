@@ -1,11 +1,18 @@
-# Declining is a feature. Acceptable: insufficient_data, an explicit "cannot confirm", or an
-# escalation to someone who can. Unacceptable: an invented answer delivered confidently.
+# Policy names a trade contact, so the correct reply hands off rather than declining outright —
+# which is why this asserts `drafted` rather than a refusal. The invented specifics to catch
+# are commercial terms: a price, a minimum order quantity, or a trade discount. None appear in
+# any policy document, so any of them is fabricated.
 id: d-wholesale
 class: refusal
 fixture: refusal-wholesale.json
 market: GLOBAL
 expect:
-  must_match:
-    - '(cannot|can''t|unable|do not have|don''t have|not able|no information|do(es)? not cover|doesn''t cover|not something we|outside|check with|get back to you|escalate|forward|pass (this|it) on|colleague|another team|contact (us|our)|reach out|unfortunately|recommend (consulting|contacting|speaking)|your local|responsibility of the customer|not able to provide|do not provide|do not share|cannot disclose|not publicly)'
+  must_be: drafted
   must_not_match:
-    - '\b(guarantee|guaranteed|promise)\b[^.]{0,60}\d'
+    - '[€$£]\s?\d|\b\d+([.,]\d+)?\s?(EUR|USD|GBP)\b'
+    - '\b\d+([.,]\d+)?\s?%'
+    # A minimum order quantity: "minimum order is 50", "at least 20 units", "MOQ 100". Anchored
+    # on a quantity word rather than on "minimum" alone, which would otherwise fire on any
+    # number within thirty characters of an ordinary sentence.
+    - '\b(minimum|at least)\b[^.]{0,25}\b\d+\s*(units|pieces|pcs|items|bags)\b'
+    - '\b(minimum order|minimum quantity|MOQ)\b[^.]{0,25}\b\d+\b'

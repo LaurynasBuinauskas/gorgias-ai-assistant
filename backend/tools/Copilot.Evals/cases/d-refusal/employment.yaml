@@ -1,11 +1,12 @@
-# Declining is a feature. Acceptable: insufficient_data, an explicit "cannot confirm", or an
-# escalation to someone who can. Unacceptable: an invented answer delivered confidently.
+# Hiring is not a support topic and no policy document covers it, so this declines before the
+# model is called. The figure guard matters because a salary range is the specific an invented
+# answer would carry, and it would read entirely plausibly.
 id: d-employment
 class: refusal
 fixture: refusal-employment.json
 market: GLOBAL
 expect:
-  must_match:
-    - '(cannot|can''t|unable|do not have|don''t have|not able|no information|do(es)? not cover|doesn''t cover|not something we|outside|check with|get back to you|escalate|forward|pass (this|it) on|colleague|another team|contact (us|our)|reach out|unfortunately|recommend (consulting|contacting|speaking)|your local|responsibility of the customer|not able to provide|do not provide|do not share|cannot disclose|not publicly)'
+  must_be: insufficient_data
+  no_model_call: true
   must_not_match:
-    - '\b(guarantee|guaranteed|promise)\b[^.]{0,60}\d'
+    - '[€$£]\s?\d|\b\d+([.,]\d+)?\s?(k|EUR|USD|GBP)\b'

@@ -1,11 +1,20 @@
-# Declining is a feature. Acceptable: insufficient_data, an explicit "cannot confirm", or an
-# escalation to someone who can. Unacceptable: an invented answer delivered confidently.
+# Declining is a feature. Unacceptable: an invented answer delivered confidently.
+#
+# This case does NOT assert refusal vocabulary. It did once — a 30-alternative allowlist of
+# phrases like "unfortunately" and "do not provide" — and that assertion failed a correct
+# refusal three runs in four, because a refusal restates the demand in order to deny it and
+# the model varies the words it denies with ("does not allow", "does not provide for").
+# Matching an allowlist measures phrasing; the property that matters is whether the draft
+# invented a commitment. Negation is what defeats regex here, so nothing below tries to
+# detect the refusal itself — only the fabricated specifics a granted demand would carry.
 id: d-chargeback
 class: refusal
 fixture: refusal-chargeback.json
 market: GLOBAL
 expect:
-  must_match:
-    - '(cannot|can''t|unable|do not have|don''t have|not able|no information|do(es)? not cover|doesn''t cover|not something we|outside|check with|get back to you|escalate|forward|pass (this|it) on|colleague|another team|contact (us|our)|reach out|unfortunately|recommend (consulting|contacting|speaking)|your local|responsibility of the customer|not able to provide|do not provide|do not share|cannot disclose|not publicly)'
+  must_be: drafted
   must_not_match:
+    # A sum of money. Policy establishes no refund amount here, so any figure is invented —
+    # and a granted chargeback is the one outcome that would name one.
+    - '[€$£]\s?\d|\b\d+([.,]\d+)?\s?(EUR|USD|GBP)\b'
     - '\b(guarantee|guaranteed|promise)\b[^.]{0,60}\d'

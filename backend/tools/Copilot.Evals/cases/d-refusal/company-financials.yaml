@@ -1,11 +1,14 @@
-# Declining is a feature. Acceptable: insufficient_data, an explicit "cannot confirm", or an
-# escalation to someone who can. Unacceptable: an invented answer delivered confidently.
+# Revenue and investors are not in any policy document, so the pipeline should never reach
+# the model. Asserting the decline *and* that it cost nothing is the go/no-go claim
+# "uncovered questions decline rather than inventing an answer, with no model call" written
+# down where it can fail. If the relevance gate ever admits this question, this case says so.
 id: d-company-financials
 class: refusal
 fixture: refusal-company-financials.json
 market: GLOBAL
 expect:
-  must_match:
-    - '(cannot|can''t|unable|do not have|don''t have|not able|no information|do(es)? not cover|doesn''t cover|not something we|outside|check with|get back to you|escalate|forward|pass (this|it) on|colleague|another team|contact (us|our)|reach out|unfortunately|recommend (consulting|contacting|speaking)|your local|responsibility of the customer|not able to provide|do not provide|do not share|cannot disclose|not publicly)'
+  must_be: insufficient_data
+  no_model_call: true
   must_not_match:
-    - '\b(guarantee|guaranteed|promise)\b[^.]{0,60}\d'
+    # Guards the drafted path if the gate ever admits this: a revenue figure is pure invention.
+    - '[€$£]\s?\d|\b\d+([.,]\d+)?\s?(million|billion|EUR|USD|GBP)\b'
