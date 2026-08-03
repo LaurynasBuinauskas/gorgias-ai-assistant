@@ -77,6 +77,9 @@ public static class Assertions
             results.Add(CiteMarket(expect.MustCiteMarket, outcome));
         }
 
+        // "Cited nothing" has the same two causes here as it does for min_citations, and this
+        // assertion was the one reporting it without the reason.
+
         if (expect.MustBe is { } required)
         {
             results.Add(new AssertionResult(
@@ -131,8 +134,11 @@ public static class Assertions
     {
         if (outcome.Citations.Count == 0)
         {
+            var reason = outcome.Diagnostics.Count == 0
+                ? ""
+                : $" — {string.Join("; ", outcome.Diagnostics)}";
             return new AssertionResult("must_cite_market", false,
-                "draft cited nothing, so its market cannot be verified");
+                "draft cited nothing, so its market cannot be verified" + reason);
         }
 
         var wrong = outcome.Citations

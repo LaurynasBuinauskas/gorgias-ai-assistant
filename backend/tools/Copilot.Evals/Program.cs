@@ -17,6 +17,12 @@ var outputPath = Argument("--out") ?? "eval-report.md";
 // exercised and say nothing about the corpus actually in use. Keep this in step with
 // `TicketTopK` in `appsettings.json`; pass `--ticket-topk 0` to see behaviour without them.
 var ticketTopK = int.TryParse(Argument("--ticket-topk"), out var parsed) ? parsed : 3;
+
+// Same idea for internal guidance, which is never quotable but is still read. Two runs that
+// differ only in this number are what answer whether a fact in a draft came from there.
+var internalTopK = int.TryParse(Argument("--internal-topk"), out var internals)
+    ? internals
+    : new RetrievalOptions().InternalTopK;
 var draftsPath = Argument("--drafts");
 var root = AppContext.BaseDirectory;
 
@@ -87,8 +93,12 @@ var store = new AzureSearchKnowledgeStore(
     NullLogger<AzureSearchKnowledgeStore>.Instance);
 
 var runner = new EvalRunner(
-    chatClient, store, new RetrievalOptions { TicketTopK = ticketTopK }, new DraftingOptions());
+    chatClient,
+    store,
+    new RetrievalOptions { TicketTopK = ticketTopK, InternalTopK = internalTopK },
+    new DraftingOptions());
 Console.WriteLine($"Ticket exemplars: {(ticketTopK > 0 ? $"top {ticketTopK}" : "off")}");
+Console.WriteLine($"Internal guidance: {(internalTopK > 0 ? $"top {internalTopK}" : "off")}");
 var fixtures = Path.Combine(root, "fixtures", "tickets");
 
 var results = new List<CaseResult>();

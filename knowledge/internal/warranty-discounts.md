@@ -4,7 +4,22 @@ topic: warranty-discounts
 exposure: internal
 effective_date: 2026-06-22
 version: 1
+retrieval: exclude
 ---
+
+<!--
+Not retrieved. This is agent workflow — how to create a discount in Shopify, which code to
+issue for which warranty case — and nothing a draft should rest on. Being internal was not
+enough to keep it out of replies: the model never quoted it, it converted it. Shown "repair at
+our headquarters can take 2 months" it told a customer "about 8 weeks", against a published
+policy of one week that was in the same prompt. It also carries ITALY10, 50% and 80%, which is
+the material behind every commitment defect found on 2026-08-03.
+
+Measured: with internal guidance retrieved, class E failed 2 runs in 15; without it, 0 in 12.
+
+It stays here for people to read. Delete this marker to put it back in front of the model.
+-->
+
 # Warranty discounts
 
 Warranty discount code format: ORDER NR - WARRANTY → #US#1111 - WARRANTY

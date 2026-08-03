@@ -104,6 +104,7 @@ def document_key(natural: str) -> str:
 
 def collect() -> list[Document]:
     documents: list[Document] = []
+    excluded: list[str] = []
     for corpus, folder in CORPORA.items():
         root = KNOWLEDGE / folder
         if not root.exists():
@@ -114,6 +115,19 @@ def collect() -> list[Document]:
             fields, body = parse_front_matter(path.read_text(encoding="utf-8"))
             if not fields:
                 print(f"warning: {path} has no front-matter; skipped", file=sys.stderr)
+                continue
+
+            # A document can be internal *and* still be wrong to retrieve. Internal guidance is
+            # never quoted into a reply, but the model reads it to decide what to say, and it
+            # demonstrably converts what it reads: shown "repair at headquarters can take 2
+            # months" it told a customer "about 8 weeks", contradicting the published policy of
+            # one week that was sitting at the top of POLICY in the same prompt. Class A did not
+            # catch it because class A looks for internal wording and the units had changed.
+            #
+            # So a document whose content is agent workflow rather than anything a reply should
+            # rest on can opt out of retrieval entirely and stay in the repository for people.
+            if fields.get("retrieval", "").strip().lower() == "exclude":
+                excluded.append(path.as_posix())
                 continue
 
             source_path = path.as_posix()
@@ -137,6 +151,9 @@ def collect() -> list[Document]:
                     source_version=hashlib.sha256(chunk.content.encode()).hexdigest()[:16],
                     effective_date=fields.get("effective_date", ""),
                 ))
+    for path in excluded:
+        print(f"excluded from retrieval: {path}")
+
     return documents
 
 
