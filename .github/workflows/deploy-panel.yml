@@ -29,6 +29,11 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Same gap the API deploy had: this workflow and CI are independent push triggers, so a
+      # panel whose tests were red shipped anyway. Run them here, where they can stop it.
+      - run: pnpm --filter @copilot/panel check
+      - run: pnpm --filter @copilot/panel test
+
       # The API origin is baked into the bundle at build time.
       - run: pnpm --filter @copilot/panel build
         env:

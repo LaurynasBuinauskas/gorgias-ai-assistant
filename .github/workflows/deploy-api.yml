@@ -14,8 +14,29 @@ on:
 # Runtime secrets (Gorgias/OpenAI keys) are NOT handled here: App Service reads them
 # from Key Vault via its managed identity, so they never touch GitHub or this workflow.
 jobs:
+  # CI and this workflow are separate push triggers with nothing between them, so a commit
+  # that failed its tests still deployed — which happened on 2026-08-03 with a762e4b. The
+  # tests run here rather than via `workflow_run` on CI so that the path filters above keep
+  # working: `workflow_run` cannot see them, and every docs-only commit would redeploy the API.
+  # It costs about a minute of duplicated work to make the gate structural.
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet restore Copilot.slnx
+      - run: dotnet build Copilot.slnx --no-restore --configuration Release
+      - run: dotnet test Copilot.slnx --no-build --configuration Release
+
   deploy:
     name: Publish to Azure App Service
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
