@@ -37,6 +37,22 @@ builder.WebHost.ConfigureKestrel((context, kestrel) =>
     kestrel.Limits.MaxRequestBodySize = limits.MaxRequestBodyBytes;
 });
 
+// Telemetry. `RetrievalLog` already records which chunks fed each draft — including which
+// resolved ticket each exemplar came from — but nothing was retaining it: App Service
+// application logging was Off and no Application Insights resource exists, so every draft's
+// provenance was written and discarded. That is only tolerable while the ticket corpus is off,
+// and it no longer is.
+//
+// Bound conditionally so the API runs unchanged until the resource exists. Set
+// `APPLICATIONINSIGHTS_CONNECTION_STRING` to switch it on; nothing else here changes.
+var telemetryConnection = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]
+                          ?? builder.Configuration["ApplicationInsights:ConnectionString"];
+if (!string.IsNullOrWhiteSpace(telemetryConnection))
+{
+    builder.Services.AddApplicationInsightsTelemetry(
+        options => options.ConnectionString = telemetryConnection);
+}
+
 builder.Services.AddGorgias();
 builder.Services.AddAi();
 builder.Services.AddKnowledgeStore();

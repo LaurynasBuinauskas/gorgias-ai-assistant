@@ -89,6 +89,41 @@ reported 17 of 29 documents surviving a delete that had actually succeeded.
 Verified end to end on 2026-08-02 against ticket 221595229 — 29 documents removed, none
 remaining, rebuild exclusion confirmed by the ledger.
 
+**Removal covers the index, not drafts already produced.** Since 2026-08-03 exemplars reach
+agents, so an exchange can have influenced a reply that was already edited and sent. Nothing
+recalls that, and erasure from the index does not claim to. Section 2a is how you find out
+which drafts were affected — assuming the telemetry sink below exists by then.
+
+## 2a. Which exemplars fed a given draft?
+
+`RetrievalLog` already records this, and has all along: one line per draft carrying the draft
+id, the Gorgias ticket being answered, and every retrieved chunk with its score. Ticket chunk
+ids decode to `ticket:<ticketId>:<ordinal>`, so the line names the resolved tickets that fed
+the reply. **No chunk text is ever logged** — ids, scores, paths and counts only, because a log
+quoting a customer is a second copy of personal data in a system not designed to hold it.
+
+What was missing was somewhere to keep it. As of 2026-08-03 App Service application logging is
+on at Information, which is a stopgap: it is ephemeral and not queryable, good for watching a
+problem happen and useless for answering a question about last week.
+
+```bash
+az webapp log tail --name gorgias-assistant-api --resource-group gorgias-assistant-rg
+```
+
+The durable answer is Application Insights, which `Program.cs` binds as soon as
+`APPLICATIONINSIGHTS_CONNECTION_STRING` is set and ignores until then. **The resource does not
+exist yet** — see `go-no-go.md`. Once it does:
+
+```kusto
+traces
+| where message has "Draft <draftId>"
+| where message has "ticketExemplars"
+| project timestamp, message
+```
+
+Until that resource exists, there is no way to answer "which past customers' exchanges fed
+this draft" for anything older than the log buffer. That is a real gap while exemplars are on.
+
 ## 3. When is it stale?
 
 Exemplars decay differently from policy: nothing tells you they are wrong, because they were
