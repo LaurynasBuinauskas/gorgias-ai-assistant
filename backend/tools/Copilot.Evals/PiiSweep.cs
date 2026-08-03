@@ -57,6 +57,16 @@ public static class PiiSweep
         return findings;
     }
 
+    /// <summary>
+    /// Scans arbitrary text with the same patterns and the same masking.
+    ///
+    /// Exposed so a corpus-wide sweep can reuse this rather than restate the patterns
+    /// somewhere else. Two copies of a rule drift, and the copy that drifts is the one nobody
+    /// is watching.
+    /// </summary>
+    public static IReadOnlyList<PiiFinding> ScanText(string text, string where) =>
+        [.. Scan(text, where)];
+
     private static IEnumerable<PiiFinding> Scan(string text, string where)
     {
         if (string.IsNullOrWhiteSpace(text))

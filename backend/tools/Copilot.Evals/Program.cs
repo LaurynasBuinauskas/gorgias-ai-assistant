@@ -20,6 +20,33 @@ var ticketTopK = int.TryParse(Argument("--ticket-topk"), out var parsed) ? parse
 var draftsPath = Argument("--drafts");
 var root = AppContext.BaseDirectory;
 
+// Sweeping the whole corpus is a different job from running cases, so it exits here rather
+// than bolting a second meaning onto the eval report.
+if (Environment.GetCommandLineArgs().Contains("--sweep-corpus"))
+{
+    var sweepKey = Secret("search-adminkey");
+    if (sweepKey is null)
+    {
+        Console.Error.WriteLine("Could not read the search key. Run 'az login'.");
+        return 1;
+    }
+
+    var ticketIndex = Argument("--index") ?? "tickets-v2";
+    Console.WriteLine($"Sweeping every document in {ticketIndex}");
+
+    var sweep = await CorpusSweep.RunAsync(
+        new Uri("https://gorgias-assistant-search.search.windows.net"),
+        ticketIndex,
+        sweepKey,
+        CancellationToken.None);
+
+    var sweepReport = CorpusSweep.Render(sweep);
+    File.WriteAllText(outputPath, sweepReport);
+    Console.WriteLine(sweepReport);
+    Console.WriteLine($"Report written to {outputPath}");
+    return sweep.Findings.Count == 0 ? 0 : 1;
+}
+
 var cases = LoadCases(Path.Combine(root, "cases"), caseFilter);
 if (cases.Count == 0)
 {

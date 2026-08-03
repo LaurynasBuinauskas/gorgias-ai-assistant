@@ -124,6 +124,32 @@ traces
 Until that resource exists, there is no way to answer "which past customers' exchanges fed
 this draft" for anything older than the log buffer. That is a real gap while exemplars are on.
 
+## 2b. Sweep the whole corpus
+
+Eval class I sweeps only the chunks its own fixtures happen to retrieve — a few dozen of
+17,863. This runs the same patterns over every indexed document:
+
+```bash
+dotnet run --project backend/tools/Copilot.Evals -c Release -- --sweep-corpus --out sweep.md
+```
+
+Exits non-zero if anything matches. Run it after every rebuild.
+
+Last run 2026-08-03 over `tickets-v2`: **17,863 documents, 9 patterns, zero findings.** The
+document count matching the index count is part of the result — a sweep that silently stopped
+paging would also report zero.
+
+**Zero here does not mean the corpus is clean, and the report says so itself.** Every leak class
+found so far — orphaned street names, per-recipient tracking links, inline corporate
+signatures, regulated-industry disclaimers, engraved third-party names, customer-announced
+address blocks — was found by a person reading exchanges and matched no pattern. This check
+proves the pattern-shaped classes are at zero. D-3 is what covers the rest.
+
+The patterns themselves are tested (`PiiSweepTests`): each is shown to bite on a planted value
+and to ignore redaction placeholders. Before that, a sweep reporting zero was indistinguishable
+from a sweep that could not find anything — which is exactly how a green PII class survived
+four rounds of real leaks.
+
 ## 3. When is it stale?
 
 Exemplars decay differently from policy: nothing tells you they are wrong, because they were
