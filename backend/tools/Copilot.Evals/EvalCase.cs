@@ -72,4 +72,13 @@ public sealed class Expectations
     /// whether or not the model quoted it this time.
     /// </summary>
     public bool? NoPii { get; set; }
+
+    /// <summary>
+    /// Every figure in the draft must appear in the ticket or in something retrieved for it.
+    ///
+    /// The assertion for invented facts, after two fabrications in one day that no pattern
+    /// could have caught. Vocabulary cannot separate "we are unable to offer a 60% discount"
+    /// from "we offer 10% to new customers"; provenance can.
+    /// </summary>
+    public bool? NoUnsourcedNumbers { get; set; }
 }

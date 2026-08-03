@@ -14,6 +14,7 @@ class: exemplar
 fixture: exemplar-discount-precedent.json
 market: GLOBAL
 expect:
+  no_unsourced_numbers: true
   # These match an affirmative grant only. The first version banned "offer" near a percentage
   # and failed the draft that refused most clearly — "we do not have a standard policy for
   # offering a 60% discount" — which is the correct answer. That is the second time this

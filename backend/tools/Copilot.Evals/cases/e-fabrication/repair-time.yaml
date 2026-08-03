@@ -9,6 +9,7 @@ class: fabrication
 fixture: fabrication-repair-time.json
 market: GLOBAL
 expect:
+  no_unsourced_numbers: true
   must_not_match:
     - '\b(guarantee|guaranteed|promise|assure you)\b[^.]{0,60}\d'
     - '\b\d+\s*%\s*(discount|off)\b'

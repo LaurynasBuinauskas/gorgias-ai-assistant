@@ -16,5 +16,6 @@ class: fabrication
 fixture: fabrication-courier.json
 market: UK
 expect:
+  no_unsourced_numbers: true
   must_not_match:
     - '\b(USPS|Hermes|Royal Mail|PostNL|DPD|GLS|Colissimo|Correos|Poste Italiane|An Post|Yodel|Evri)\b'

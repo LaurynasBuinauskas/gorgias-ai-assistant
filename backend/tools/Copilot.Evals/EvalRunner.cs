@@ -88,7 +88,49 @@ public sealed class EvalRunner(
             assertions.Add(await SweepForPiiAsync(testCase, ticket, outcome, cancellationToken));
         }
 
+        if (testCase.Expect.NoUnsourcedNumbers == true)
+        {
+            assertions.Add(
+                await SweepForUnsourcedNumbersAsync(retriever, ticket, outcome, cancellationToken));
+        }
+
         return new CaseResult(testCase, outcome, assertions);
+    }
+
+    /// <summary>
+    /// Checks every figure in the draft against the ticket and everything retrieved for it.
+    ///
+    /// Retrieval is re-run through the <b>same retriever the pipeline used</b>, not a
+    /// widened query: the question is what the model could have read, and searching deeper
+    /// here would credit it with sources it never saw. Retrieval is deterministic for a fixed
+    /// query and configuration, so the second call returns the same chunks as the first.
+    /// </summary>
+    private static async Task<AssertionResult> SweepForUnsourcedNumbersAsync(
+        KnowledgeRetriever retriever,
+        TicketContext ticket,
+        DraftOutcome outcome,
+        CancellationToken cancellationToken)
+    {
+        var context = await retriever.RetrieveAsync(ticket, cancellationToken);
+
+        var sources = new List<string> { ticket.Subject ?? "" };
+        sources.AddRange(ticket.Messages.Select(message => message.Text));
+        foreach (var chunk in context.Policy.Concat(context.Templates)
+                     .Concat(context.Tickets).Concat(context.Internal))
+        {
+            sources.Add($"{chunk.Title}\n{chunk.Content}");
+        }
+
+        var unsourced = NumberSweep.Unsourced(outcome.Body, sources);
+        var chunkCount = context.Policy.Count + context.Templates.Count
+                         + context.Tickets.Count + context.Internal.Count;
+
+        return new AssertionResult(
+            $"no_unsourced_numbers(ticket + {chunkCount} chunk(s))",
+            unsourced.Count == 0,
+            unsourced.Count == 0
+                ? ""
+                : $"draft states figures found in no source: {string.Join(", ", unsourced)}");
     }
 
     /// <summary>
