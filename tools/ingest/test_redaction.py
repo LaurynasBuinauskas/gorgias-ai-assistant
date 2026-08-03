@@ -18,7 +18,12 @@ from __future__ import annotations
 
 import sys
 
-from redaction import engraved_third_party_name, redact, residual_identifiers
+from redaction import (
+    engraved_third_party_name,
+    granted_commitment,
+    redact,
+    residual_identifiers,
+)
 
 # (name, text, known_names, must_disappear)
 CASES: list[tuple[str, str, list[str], list[str]]] = [
@@ -336,6 +341,56 @@ def check_engraved_withhold() -> list[str]:
     return problems
 
 
+COMMITMENT_WITHHOLD: list[tuple[str, str, bool]] = [
+    # Fires: goodwill the company does not publish.
+    ("unpublished promo code",
+     "We have applied the WELCOME10 discount code to your order.", True),
+    ("code built from the customer's surname",
+     "Please use SMITH15 at checkout for your next purchase.", True),
+    ("percentage granted",
+     "As a gesture of goodwill we would like to offer you 20% off your next order.", True),
+    ("discount applied to this order",
+     "I have applied a 15% discount to your order today.", True),
+
+    # Does not fire: repeating published policy, or declining.
+    ("sanctioned code, sold-out situation",
+     "As the item is sold out, please use ITALY10 on a future order.", False),
+    ("sanctioned repair code",
+     "For the repair please quote REPAIR1 when you send the bag back.", False),
+    ("declining a discount",
+     "We are unable to offer a 60% discount as a goodwill gesture.", False),
+    # Withheld despite being a refusal: the hazard is the working code, not the sentence.
+    ("refusing, but naming an unpublished code",
+     "We cannot apply WELCOME10 to an order that has already shipped.", True),
+    ("no standard discount policy",
+     "We do not have a standard policy for offering a 30% discount.", False),
+    ("returns address containing a warehouse id",
+     "Send it to ESWD Intelligente LT82229025, Frankfurt am Main, Germany.", False),
+    ("carrier tracking reference",
+     "Your parcel is travelling under TBA330860787685 and is due Friday.", False),
+    ("percentage that is not an offer",
+     "The bag is 90% full-grain cowhide and 10% cotton lining.", False),
+    ("ordinary reply",
+     "Thank you for reaching out. Returns are accepted within 30 days.", False),
+]
+
+
+def check_commitment_withhold() -> list[str]:
+    """Withholding goodwill must not withhold the exchanges that decline it.
+
+    The failure to avoid is the one the eval assertions already made twice: a refusal restates
+    the offer in order to refuse it, so a rule anchored on the number rather than on the giving
+    would drop exactly the replies worth learning from.
+    """
+    problems: list[str] = []
+    for name, text, should_fire in COMMITMENT_WITHHOLD:
+        fired = granted_commitment(text) is not None
+        if fired != should_fire:
+            verb = "did not fire" if should_fire else "fired"
+            problems.append(f"commitment withhold {verb} on '{name}'")
+    return problems
+
+
 def check_fail_closed() -> list[str]:
     """The check must reject text that skipped redaction — otherwise it is decoration.
 
@@ -386,6 +441,14 @@ def main() -> int:
         if lost:
             failures.append(f"{name}: over-redacted, lost {lost} -> {redacted!r}")
         print(f"  [{'ok' if not lost else 'FAIL'}] {name}")
+
+    print(f"\n== granted-commitment withhold ({len(COMMITMENT_WITHHOLD)} cases) ==")
+    commitment_problems = check_commitment_withhold()
+    failures.extend(commitment_problems)
+    for name, _, should_fire in COMMITMENT_WITHHOLD:
+        expected = "withholds" if should_fire else "keeps"
+        broken = any(f"'{name}'" in problem for problem in commitment_problems)
+        print(f"  [{'FAIL' if broken else 'ok'}] {expected}: {name}")
 
     print(f"\n== engraved-name withhold ({len(ENGRAVED_WITHHOLD)} cases) ==")
     engraved_problems = check_engraved_withhold()

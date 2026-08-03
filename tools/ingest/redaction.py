@@ -326,6 +326,76 @@ def engraved_third_party_name(text: str) -> str | None:
     return None
 
 
+# A promo code the company publishes. Both live in `knowledge/templates` and
+# `knowledge/internal`, each tied to a situation: ITALY10 to a sold-out order, REPAIR1 to a
+# warranty repair. Neither is a general discount, which is exactly how ITALY10 reached a
+# customer who had simply asked for one — the right code in the wrong situation.
+SANCTIONED_CODES = frozenset({"ITALY10", "REPAIR1"})
+
+# Shouted words and identifiers that share a promo code's shape without being one. `LT82229025`
+# is part of a returns address and appears in published policy; `TBA…` is a carrier tracking
+# number. Counting these as codes overstated the first survey by a third.
+_NOT_A_CODE = frozenset({
+    "VAT", "EU", "UK", "USA", "US", "DHL", "UPS", "FEDEX", "USPS", "PDF", "URL", "ID", "OK",
+    "ASAP", "FYI", "PS", "RE", "COD", "DPD", "GLS", "AM", "PM", "CET", "EST", "GMT",
+})
+_LOGISTICS_ID = re.compile(r"^(LT\d{6,}|TBA\d{8,}|\d{8,}|[A-Z]{2}\d{7,})$")
+_CODE_SHAPED = re.compile(r"\b(?=[A-Z0-9]{4,20}\b)(?=[A-Z]*\d)[A-Z][A-Z0-9]{3,19}\b")
+
+# A percentage presented as something being given, not something being declined. Anchored on
+# the offer rather than on the number, because a refusal restates the figure in order to refuse
+# it and banning the figure would withhold the exchanges that decline best.
+_PERCENTAGE_OFFER = re.compile(
+    r"\b(offer|give|giving|granted|applied|apply|issued|provide|arrange)\w*\b[^.]{0,40}\b\d{1,2}\s?%"
+    r"|\b\d{1,2}\s?%\s*(off|discount)\b[^.]{0,30}\b(your|next|the)\b",
+    re.IGNORECASE)
+
+# Anchoring on the verb was not enough on its own: "we are unable to offer a 60% discount"
+# contains "offer … 60%" and is the reply most worth keeping. The sentence is checked for a
+# negation first, which is the same distinction the class D assertions had to learn — a refusal
+# restates the demand in order to deny it.
+_NEGATION = re.compile(
+    r"\b(cannot|can't|could not|couldn't|unable|not able|do not|don't|does not|doesn't"
+    r"|no longer|never|not have|no standard)\b", re.IGNORECASE)
+
+_SENTENCE = re.compile(r"[^.!?\n]+")
+
+
+def granted_commitment(text: str) -> str | None:
+    """Return the goodwill an agent granted in this reply, or None.
+
+    A withholding check, like :func:`engraved_third_party_name`, and for the same reason: the
+    problem cannot be redacted away without destroying what the exemplar is for.
+
+    The corpus teaches phrasing, and unavoidably teaches whatever the agent decided that day.
+    Measured over 17,863 exchanges: 187 replies hand out a promo code the company does not
+    publish and 293 offer a percentage discount. Some of those codes are built from the
+    customer's own surname — PETER50, HUNTER60, SMITH15, DARGAN40 — which is a name surviving
+    redaction inside a token no name rule can see, as well as a precedent no policy supports.
+
+    Sanctioned codes are kept. An exemplar using ITALY10 against a sold-out order is repeating
+    policy, and that is worth learning from.
+    """
+    # Codes are withheld whether or not the sentence around them is a refusal. The hazard is
+    # the code itself: a model copying "we cannot apply WELCOME10" into a reply has still put a
+    # working code in front of a customer.
+    for match in _CODE_SHAPED.finditer(text):
+        code = match.group(0)
+        if code in SANCTIONED_CODES or code in _NOT_A_CODE or _LOGISTICS_ID.match(code):
+            continue
+        return code
+
+    for sentence in _SENTENCE.finditer(text):
+        clause = sentence.group(0)
+        if _NEGATION.search(clause):
+            continue
+        offer = _PERCENTAGE_OFFER.search(clause)
+        if offer:
+            return offer.group(0).strip()
+
+    return None
+
+
 def _redact_names(text: str, known_names: list[str]) -> str:
     """Replace known participant names, longest first so full names beat first names."""
     parts: list[tuple[str, str]] = []

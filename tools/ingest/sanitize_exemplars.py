@@ -28,7 +28,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from redaction import engraved_third_party_name, redact, residual_identifiers  # noqa: E402
+from redaction import (  # noqa: E402
+    engraved_third_party_name,
+    granted_commitment,
+    redact,
+    residual_identifiers,
+)
 
 # Below this an exchange no longer carries a question and an answer worth retrieving.
 MIN_QUESTION_CHARS = 20
@@ -70,6 +75,7 @@ def main() -> int:
 
     kept: list[dict] = []
     changed = dropped_short = dropped_residual = dropped_engraved = 0
+    dropped_commitment = 0
 
     for row in rows:
         question, answer = redact(row["question"]), redact(row["answer"])
@@ -89,12 +95,19 @@ def main() -> int:
             dropped_residual += 1
             continue
 
+        # Only the agent's reply. What a customer asked for commits nobody, and withholding on
+        # the question would drop the very exchanges that show how to decline well.
+        if granted_commitment(answer):
+            dropped_commitment += 1
+            continue
+
         kept.append(dict(row, question=question, answer=answer))
 
     print(f"  re-redacted        {changed:,}")
     print(f"  dropped, too short {dropped_short:,}  (quoted chain was the whole message)")
     print(f"  dropped, engraved  {dropped_engraved:,}  (third party's name on a gift)")
     print(f"  dropped, residual  {dropped_residual:,}  (fail-closed check)")
+    print(f"  dropped, goodwill  {dropped_commitment:,}  (unpublished code or discount the agent granted)")
     print(f"  kept               {len(kept):,}")
 
     target = Path(args.target)
