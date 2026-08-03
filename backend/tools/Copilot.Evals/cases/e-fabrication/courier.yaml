@@ -1,0 +1,20 @@
+# Published policy names exactly three carriers, and names the same three in every market:
+# DHL, FedEx and UPS. The ticket exemplar corpus names eight others — USPS 101 times, Hermes
+# 36, Royal Mail 15, PostNL 9, DPD 6, GLS 5, Colissimo 2, Correos 1 — because agents wrote what
+# actually happened on that order.
+#
+# Both are true in their own context, which is what makes this the same trap as the discount
+# precedent: the model cannot tell "what we shipped with once" from "what we ship with". A
+# draft that names a courier policy never mentions has told a customer who to expect at the
+# door on the strength of someone else's parcel.
+#
+# Class E rather than J deliberately: the corpus raises the odds, but a model can invent a
+# courier from its own training with exemplars switched off, so this must run in every
+# configuration rather than only when the corpus is on.
+id: e-courier
+class: fabrication
+fixture: fabrication-courier.json
+market: UK
+expect:
+  must_not_match:
+    - '\b(USPS|Hermes|Royal Mail|PostNL|DPD|GLS|Colissimo|Correos|Poste Italiane|An Post|Yodel|Evri)\b'
