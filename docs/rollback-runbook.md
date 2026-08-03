@@ -133,7 +133,35 @@ defect until proven otherwise.
 | Drafts cite the wrong or embarrassing content | 3 |
 | Drafts are wrong in a way retrieval could cause, index looks fine | 2 |
 | `/health` failing, 500s, or `degraded` populated | 4 |
-| Exemplars misbehaving specifically | `Retrieval__TicketTopK=0` — off by default, so this is only relevant once they are enabled |
+| Exemplars misbehaving specifically | Lever 5 |
+
+---
+
+## Lever 5 — switch exemplars off
+
+```bash
+az webapp config appsettings set --name gorgias-assistant-api \
+  --resource-group gorgias-assistant-rg --settings Retrieval__TicketTopK=0
+```
+
+`KnowledgeRetriever` short-circuits on `topK <= 0` without querying the store, so no exemplar
+text can reach a draft. Drafts continue, grounded in policy — which is exactly what the system
+did before 2026-08-03.
+
+**Observable:** `curl -s <api>/v1/config` reports `"exemplars": false`.
+
+**Drilled 2026-08-03, both directions.** `az` returned in 6 seconds; the observable flipped at
+**99 seconds** off and **98 seconds** back on. `/health` stayed healthy and `/v1/config`
+answered 200 throughout. Note 99 s is past the 70–90 s this runbook quotes elsewhere — poll the
+observable, do not count seconds.
+
+**Do not "roll back" by pointing `Knowledge__TicketIndexName` at `tickets-v1`.** That index
+predates `questionVector` and Search rejects every exemplar query against it with *"unknown
+field 'questionVector' in vector field list"*. The index name and the deployed code move
+together; reverting one alone is not a rollback, it is a second fault. Since 2026-08-03 that
+mistake degrades instead of breaking — exemplar retrieval failures are contained, drafts go out
+policy-only, and `/health` reports `ticket-exemplars-unavailable` — but the corpus is still off,
+so lever 5 is what you actually wanted.
 
 ## After any rollback
 

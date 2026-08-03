@@ -48,8 +48,7 @@ public sealed class KnowledgeRetriever(
             _options.PolicyTopK, cancellationToken, rerank: true);
         var templates = Fetch(query, market, KnowledgeCorpus.Template, KnowledgeExposure.Customer,
             _options.TemplateTopK, cancellationToken);
-        var tickets = Fetch(query, market, KnowledgeCorpus.Ticket, KnowledgeExposure.Customer,
-            _options.TicketTopK, cancellationToken);
+        var tickets = FetchExemplars(query, market, cancellationToken);
         var internals = Fetch(query, market, KnowledgeCorpus.Internal, KnowledgeExposure.Internal,
             _options.InternalTopK, cancellationToken);
 
@@ -64,6 +63,39 @@ public sealed class KnowledgeRetriever(
             Tickets = tickets.Result,
             Internal = internals.Result,
         };
+    }
+
+    /// <summary>
+    /// Exemplars, with their failure contained.
+    ///
+    /// They are style references, not grounding: a draft written from policy alone is what the
+    /// system did until 2026-08-03 and is entirely serviceable. Policy is the opposite — a
+    /// draft without it would be ungrounded, so that failure must still fail the draft.
+    ///
+    /// The concrete way this bites: pointing `TicketIndexName` back at `tickets-v1` — which
+    /// the rollback runbook used to present as a one-setting revert — makes Search reject every
+    /// exemplar query with "unknown field 'questionVector'", because that index predates the
+    /// field. Without this, an attempted rollback would 500 every draft, turning a
+    /// precautionary step into the outage it was meant to prevent.
+    /// </summary>
+    private async Task<IReadOnlyList<KnowledgeChunk>> FetchExemplars(
+        string query,
+        MarketResolution market,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var chunks = await Fetch(query, market, KnowledgeCorpus.Ticket,
+                KnowledgeExposure.Customer, _options.TicketTopK, cancellationToken);
+            health.RecordExemplarRetrievalSucceeded();
+            return chunks;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            // Recorded, never swallowed: /health reports it and the draft goes out on policy.
+            health.RecordExemplarRetrievalFailed(error.Message);
+            return [];
+        }
     }
 
     private Task<IReadOnlyList<KnowledgeChunk>> Fetch(

@@ -28,6 +28,18 @@ public static class HealthEndpoints
                         + "retrieval(s) unranked); the relevance gate cannot score");
                 }
 
+                if (retrieval.ExemplarsUnavailable)
+                {
+                    // Drafts are still going out, grounded in policy — this is a degradation,
+                    // not an outage. Reported because the alternative is exemplars silently
+                    // never reaching a draft while everything looks healthy, which is
+                    // indistinguishable from them being switched off on purpose.
+                    degraded.Add(
+                        $"ticket-exemplars-unavailable since {retrieval.ExemplarsFailedAt:u} "
+                        + $"({retrieval.ExemplarFailures} failure(s)); drafts are policy-only. "
+                        + $"Last error: {retrieval.ExemplarFailureReason}");
+                }
+
                 return new HealthResponseV1
                 {
                     Status = degraded.Count == 0 ? "healthy" : "degraded",
