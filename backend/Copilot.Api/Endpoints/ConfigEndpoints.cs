@@ -1,4 +1,5 @@
 using Copilot.Api.Contracts;
+using Copilot.Pipeline;
 using Microsoft.Extensions.Options;
 
 namespace Copilot.Api.Endpoints;
@@ -11,6 +12,7 @@ public static class ConfigEndpoints
         // takes effect without waiting on a process restart.
         app.MapGet("/v1/config", (
             IOptionsSnapshot<ShellConfigOptions> options,
+            IOptionsSnapshot<RetrievalOptions> retrieval,
             ILogger<Program> logger) =>
         {
             var shell = options.Value;
@@ -27,6 +29,7 @@ public static class ConfigEndpoints
                 KillSwitch = shell.KillSwitch,
                 MinShellVersion = shell.MinShellVersion,
                 AnchorProbes = shell.AnchorProbes,
+                Exemplars = retrieval.Value.TicketTopK > 0,
             };
         });
 
