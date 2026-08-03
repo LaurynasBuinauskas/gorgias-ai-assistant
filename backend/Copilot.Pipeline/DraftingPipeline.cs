@@ -63,6 +63,11 @@ public sealed class DraftingPipeline(
 
         var citations = splitter.ResolveCitations(citable);
         RetrievalLog.Citations(logger, draftId, citations);
+        if (citations.Count == 0)
+        {
+            RetrievalLog.NoCitations(
+                logger, draftId, splitter.EmittedSourcesBlock, splitter.UnresolvedLabels);
+        }
         return new PipelineResult.Success(CreateDraft(draftId, ticket, body, citations));
     }
 
@@ -112,6 +117,11 @@ public sealed class DraftingPipeline(
 
         var citations = splitter.ResolveCitations(citable);
         RetrievalLog.Citations(logger, draftId, citations);
+        if (citations.Count == 0)
+        {
+            RetrievalLog.NoCitations(
+                logger, draftId, splitter.EmittedSourcesBlock, splitter.UnresolvedLabels);
+        }
         yield return new DraftChunk.Sources(citations);
     }
 

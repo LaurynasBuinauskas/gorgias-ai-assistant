@@ -65,6 +65,22 @@ public sealed class SourceSplitter
     public string Body => _body.ToString().TrimEnd();
 
     /// <summary>
+    /// Whether the model ever emitted the delimiter. Distinguishes "wrote no sources at all"
+    /// from "wrote sources that resolved to nothing" — which look identical from the citation
+    /// list and need opposite fixes.
+    /// </summary>
+    public bool EmittedSourcesBlock => _inSources;
+
+    /// <summary>
+    /// Labels the model cited that matched nothing retrieved, populated by
+    /// <see cref="ResolveCitations"/>. An internal label is expected here and is not a defect;
+    /// anything else means the model named a source it was never shown.
+    /// </summary>
+    public IReadOnlyList<string> UnresolvedLabels => _unresolved;
+
+    private readonly List<string> _unresolved = [];
+
+    /// <summary>
     /// Resolves emitted labels against what was actually retrieved. Labels that match nothing
     /// are dropped rather than reported: a citation naming a source that was never shown is
     /// not evidence of grounding, and internal labels are deliberately unresolvable.
@@ -79,9 +95,18 @@ public sealed class SourceSplitter
                      .Split(['\n', '\r', ',', ' ', '\t', '[', ']'], StringSplitOptions.RemoveEmptyEntries))
         {
             var label = token.Trim().TrimEnd('.', ';');
-            if (seen.Add(label) && citable.TryGetValue(label, out var chunk))
+            if (!seen.Add(label))
+            {
+                continue;
+            }
+
+            if (citable.TryGetValue(label, out var chunk))
             {
                 citations.Add(new DraftCitation(label, chunk.Id, chunk.SourcePath, chunk.Market));
+            }
+            else
+            {
+                _unresolved.Add(label);
             }
         }
 

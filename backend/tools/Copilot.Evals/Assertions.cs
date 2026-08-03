@@ -18,6 +18,13 @@ public sealed record DraftOutcome
     public IReadOnlyList<DraftCitation> Citations { get; init; } = [];
 
     public int ModelCalls { get; init; }
+
+    /// <summary>
+    /// Warnings the pipeline logged while producing this draft. Carried so a failure can quote
+    /// the reason instead of leaving someone to reproduce it — "cited 0 sources" and "cited 0
+    /// sources because it never emitted the block" need different fixes.
+    /// </summary>
+    public IReadOnlyList<string> Diagnostics { get; init; } = [];
 }
 
 /// <summary>
@@ -89,10 +96,14 @@ public static class Assertions
 
         if (expect.MinCitations is { } minimum)
         {
+            var reason = outcome.Diagnostics.Count == 0
+                ? ""
+                : $" — {string.Join("; ", outcome.Diagnostics)}";
             results.Add(new AssertionResult(
                 $"min_citations({minimum})",
                 outcome.Citations.Count >= minimum,
-                $"draft cited {outcome.Citations.Count} source(s), expected at least {minimum}"));
+                $"draft cited {outcome.Citations.Count} source(s), expected at least {minimum}"
+                + reason));
         }
 
         if (expect.NoModelCall == true)

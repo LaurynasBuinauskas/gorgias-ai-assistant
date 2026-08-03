@@ -81,6 +81,28 @@ internal static class RetrievalLog
                 ? "none"
                 : string.Join(" ", citations.Select(c => $"{c.Label}={Readable(c.ChunkId)}@{c.Market}")));
 
+    /// <summary>
+    /// Says <i>why</i> a grounded-looking draft cited nothing.
+    ///
+    /// The panel shows agents what a draft was based on, so an empty list reads as "this was
+    /// not grounded" when the real cause may be that the model simply omitted the block. Those
+    /// two need opposite fixes and are indistinguishable from the citation list alone, so the
+    /// distinction is recorded at the moment it is known.
+    /// </summary>
+    public static void NoCitations(
+        ILogger logger,
+        string draftId,
+        bool emittedBlock,
+        IReadOnlyList<string> unresolved) =>
+        logger.LogWarning(
+            "Draft {DraftId} cited nothing: sources block {BlockState}{Unresolved}. The agent "
+            + "will see a draft with no sources listed",
+            draftId,
+            emittedBlock ? "present" : "never emitted",
+            unresolved.Count == 0
+                ? ""
+                : $", labels resolving to nothing: {string.Join(" ", unresolved)}");
+
     /// <summary>Chunk identity and score per hit — never the chunk's text.</summary>
     private static string Describe(IReadOnlyList<KnowledgeChunk> chunks) =>
         chunks.Count == 0

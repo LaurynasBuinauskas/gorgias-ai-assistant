@@ -3,6 +3,7 @@ using Copilot.Domain;
 using Copilot.Knowledge;
 using Copilot.Pipeline;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -49,12 +50,15 @@ public sealed class EvalRunner(
             new RetrievalHealth(),
             Options.Create(retrievalOptions));
 
+        // Capturing rather than null: the pipeline explains an empty citation list in a
+        // warning, and discarding it here is what left "cited 0 sources" unexplainable.
+        var diagnostics = new CapturingLogger();
         var pipeline = new DraftingPipeline(
             counting,
             retriever,
             Options.Create(draftingOptions),
             Options.Create(retrievalOptions),
-            NullLogger<DraftingPipeline>.Instance);
+            diagnostics);
 
         var request = new DraftRequest
         {
@@ -71,12 +75,14 @@ public sealed class EvalRunner(
                 Body = success.Draft.Body,
                 Citations = success.Draft.Citations,
                 ModelCalls = counting.Calls,
+                Diagnostics = diagnostics.Warnings,
             },
             PipelineResult.InsufficientKnowledge insufficient => new DraftOutcome
             {
                 Outcome = "insufficient_data",
                 Body = insufficient.Message,
                 ModelCalls = counting.Calls,
+                Diagnostics = diagnostics.Warnings,
             },
             _ => throw new InvalidOperationException($"Unhandled result: {result.GetType().Name}"),
         };
@@ -189,6 +195,31 @@ public sealed class EvalRunner(
     {
         public MarketResolution Resolve(TicketContext ticket) =>
             new(market, MarketSignal.Fallback);
+    }
+
+    /// <summary>Keeps the pipeline's warnings so a failing case can quote them.</summary>
+    private sealed class CapturingLogger : ILogger<DraftingPipeline>
+    {
+        private readonly List<string> _warnings = [];
+
+        public IReadOnlyList<string> Warnings => _warnings;
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Warning;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= LogLevel.Warning)
+            {
+                _warnings.Add(formatter(state, exception));
+            }
+        }
     }
 
     /// <summary>
