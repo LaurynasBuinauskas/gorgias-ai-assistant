@@ -1,6 +1,6 @@
 # Ticket exemplar runbook
 
-Operating the `tickets-v2` index: rebuilding it, removing someone from it, and deciding when
+Operating the `tickets-v3` index: rebuilding it, removing someone from it, and deciding when
 it is stale. Policy knowledge (`knowledge-v1`) is not covered here — it has no customer data
 and a different lifecycle.
 
@@ -27,7 +27,13 @@ az webapp config appsettings set --name gorgias-assistant-api \
 Then poll `/v1/config` until `exemplars` is `false`. `KnowledgeRetriever` short-circuits on
 `topK <= 0` without querying the store, so no exemplar text can reach a draft.
 
-**`tickets-v2` replaced `tickets-v1` on 2026-08-03.** It carries an extra field,
+**`tickets-v3` is current as of 2026-08-03**, and is `v2` with the goodwill withhold
+applied — 461 exchanges dropped that hand out a discount code or percentage the company
+never published. 17,402 documents against v2's 17,863. `v2` remains populated and is the
+rollback, but note it still carries that content; rolling back to it reinstates the
+material that put `ITALY10` in front of a customer.
+
+**`tickets-v2` replaced `tickets-v1` earlier the same day.** It carries an extra field,
 `questionVector`, holding an embedding of the customer's question alone; the store matches the
 ticket corpus against that rather than against the whole question-plus-reply document, which
 measurably retrieves the right exchange more often (`tools/evals/exemplar_recall.py`).
@@ -46,14 +52,19 @@ already cost one wasted embedding bill.
 
 ```bash
 python tools/ingest/extract_tickets.py --months 12
-python tools/ingest/sanitize_exemplars.py --in data/exemplars.jsonl --out data/exemplars.clean.jsonl
-python tools/ingest/ingest_tickets.py --in data/exemplars.clean.jsonl --dry-run
-python tools/ingest/ingest_tickets.py --in data/exemplars.clean.jsonl --prune
+python tools/ingest/sanitize_exemplars.py --in data/exemplars.deduped.jsonl --out data/exemplars.clean.jsonl
+python tools/ingest/ingest_tickets.py --in data/exemplars.clean.jsonl --index tickets-v3 --dry-run
+python tools/ingest/ingest_tickets.py --in data/exemplars.clean.jsonl --index tickets-v3 --prune
 python tools/ingest/review_sample.py --size 400
 ```
 
-Ingest writes to `tickets-v2` by default; `--index` overrides it. A fresh index must exist
-first — `python tools/search-index/manage.py create --version 2 --alias tickets`.
+**Pass `--index`.** The default is still `tickets-v2` and the live index is `tickets-v3`;
+rebuilding without it writes to the wrong one and nothing complains. A fresh index must exist
+first — `python tools/search-index/manage.py create --version 3 --alias tickets`.
+
+`sanitize_exemplars` reads the deduplicated extraction, not `exemplars.jsonl`. It applies the
+removal ledger, the redaction rules, and the goodwill withhold; the last of those is what makes
+the output differ from `v2`.
 
 If a run dies partway, `--resume` skips what is already indexed instead of re-embedding it. A
 document is only written after both its vectors exist, so anything present is complete. Do not
@@ -155,7 +166,9 @@ dotnet run --project backend/tools/Copilot.Evals -c Release -- --sweep-corpus --
 
 Exits non-zero if anything matches. Run it after every rebuild.
 
-Last run 2026-08-03 over `tickets-v2`: **17,863 documents, 9 patterns, zero findings.** The
+Last run 2026-08-03 over `tickets-v2`: **17,863 documents, 9 patterns, zero findings.** Not
+yet re-run over `tickets-v3`, which is a strict subset, so the result carries over — but
+re-run it after any rebuild that adds documents. The
 document count matching the index count is part of the result — a sweep that silently stopped
 paging would also report zero.
 
