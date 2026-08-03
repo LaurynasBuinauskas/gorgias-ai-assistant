@@ -38,6 +38,23 @@ jobs:
       - run: dotnet build Copilot.slnx --no-restore --configuration Release
       - run: dotnet test Copilot.slnx --no-build --configuration Release
 
+  shell-e2e:
+    # The shell runs inside someone else's page, which is the one thing a unit test cannot
+    # honestly cover: whether an iframe lands in the right element, survives a SPA navigation
+    # and is never rebuilt. Every origin it touches is intercepted, so nothing needs running.
+    name: Extension shell (E2E)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @copilot/extension exec playwright install --with-deps chromium
+      - run: pnpm --filter @copilot/extension test:e2e
+
   redaction:
     # The rules that strip personal data out of ticket exemplars before they are indexed.
     # Every leak class in this suite was found by a person reading exchanges, not by an

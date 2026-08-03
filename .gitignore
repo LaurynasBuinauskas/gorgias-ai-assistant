@@ -318,6 +318,13 @@ node_modules/
 # Vite build output (panel + extension)
 dist/
 
+# Playwright run artefacts. Also keeps Biome off them — it reads this file, and it was
+# reformatting Playwright's own .last-run.json and failing lint on the result.
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # Postman environment exports hold real credentials — never commit them.
 # (Collection exports with {{variable}} auth are fine.)
 *.postman_environment.json
