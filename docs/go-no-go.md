@@ -69,14 +69,15 @@ live, and the first item in it is outstanding.
       evidence of a clean corpus** — it passed through all four rounds
 - [ ] **Flagged exchanges removed** via `tools/ingest/remove_exemplars.py`, index count
       re-verified
-- [ ] **A telemetry sink exists.** `RetrievalLog` records which resolved tickets fed each
-      draft, but on 2026-08-03 nothing retained it: App Service application logging was `Off`
-      and there is **no Application Insights resource in the resource group**, despite the
-      architecture naming one. Filesystem logging is now on as a stopgap — ephemeral and not
-      queryable. `Program.cs` binds Application Insights the moment
-      `APPLICATIONINSIGHTS_CONNECTION_STRING` is set. Creating the resource is a new Azure
-      service and therefore a deliberate call, not an agent's to make. Until it exists, a
-      reported leak or an erasure request cannot be traced to the drafts it touched
+- [x] **A telemetry sink exists.** `gorgias-assistant-insights`, workspace-backed by
+      `gorgias-assistant-logs` (Sweden Central, 30-day retention, 0.5 GB/day cap), created
+      2026-08-03. Verified end to end rather than assumed: request telemetry and
+      **Information-level** traces both arrive and are queryable. That level matters — the
+      Application Insights provider ignores `Logging:LogLevel` and defaults to Warning, which
+      would have dropped every provenance line while the resource still looked healthy
+- [ ] **A real draft's provenance confirmed queryable.** The plumbing is proven, but no draft
+      has been generated since the sink existed, so no `ticketExemplars` line has been written
+      yet. Query in `exemplar-runbook.md` §2a. Worth checking during the first agent session
 - [!] **Exemplars shown to improve drafts** — **still not established.** Two instruments found
       no detectable benefit, and the blind pairwise judge produced a *larger* apparent gap
       between a configuration and itself than between exemplars on and off, so it finds

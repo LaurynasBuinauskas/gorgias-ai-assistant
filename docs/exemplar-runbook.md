@@ -102,27 +102,47 @@ ids decode to `ticket:<ticketId>:<ordinal>`, so the line names the resolved tick
 the reply. **No chunk text is ever logged** — ids, scores, paths and counts only, because a log
 quoting a customer is a second copy of personal data in a system not designed to hold it.
 
-What was missing was somewhere to keep it. As of 2026-08-03 App Service application logging is
-on at Information, which is a stopgap: it is ephemeral and not queryable, good for watching a
-problem happen and useless for answering a question about last week.
+What was missing was somewhere to keep it. **Application Insights
+`gorgias-assistant-insights` exists as of 2026-08-03**, workspace-backed by
+`gorgias-assistant-logs` (Sweden Central, 30-day retention, 0.5 GB/day cap). The API binds it
+from `APPLICATIONINSIGHTS_CONNECTION_STRING`.
+
+Everything a draft records is at **Information**, and the Application Insights logger provider
+ignores `Logging:LogLevel` and defaults to Warning — so `Logging:ApplicationInsights:LogLevel`
+is set explicitly in `appsettings.json`. Removing it silently drops every line below, while
+leaving requests and exceptions flowing, so the resource still looks healthy.
+
+Which exchanges fed one draft — the query for an erasure request or a reported leak:
+
+```kusto
+AppTraces
+| where TimeGenerated > ago(30d)
+| where Message has "ticketExemplars"
+| where Message has "<draftId>"
+| project TimeGenerated, Message
+```
+
+Every draft an agent asked for, newest first:
+
+```kusto
+AppTraces
+| where Message has "ticketExemplars"
+| project TimeGenerated, Message
+| order by TimeGenerated desc
+```
+
+The chunk ids in that line decode from base64 to `ticket:<ticketId>:<ordinal>`.
+
+Note this is the **workspace-based** schema — `AppTraces` and `Message`, not the classic
+`traces`/`message`. A query written against the old names returns nothing and looks like an
+absence of data rather than a wrong query.
+
+App Service filesystem logging is also on, but it is ephemeral: good for watching a problem
+happen, useless for answering a question about last week.
 
 ```bash
 az webapp log tail --name gorgias-assistant-api --resource-group gorgias-assistant-rg
 ```
-
-The durable answer is Application Insights, which `Program.cs` binds as soon as
-`APPLICATIONINSIGHTS_CONNECTION_STRING` is set and ignores until then. **The resource does not
-exist yet** — see `go-no-go.md`. Once it does:
-
-```kusto
-traces
-| where message has "Draft <draftId>"
-| where message has "ticketExemplars"
-| project timestamp, message
-```
-
-Until that resource exists, there is no way to answer "which past customers' exchanges fed
-this draft" for anything older than the log buffer. That is a real gap while exemplars are on.
 
 ## 2b. Sweep the whole corpus
 
