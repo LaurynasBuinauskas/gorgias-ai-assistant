@@ -33,7 +33,10 @@ from redaction import residual_identifiers  # noqa: E402
 
 SERVICE = "gorgias-assistant-search"
 VAULT = "gorgias-assistant-kv"
-INDEX = "tickets-v1"
+# `tickets-v2` adds the separately embedded `questionVector`. Rebuilding into a new index
+# rather than over the old one keeps rollback to one app setting (`Knowledge__TicketIndexName`)
+# with no reindex to undo.
+INDEX = "tickets-v2"
 API_VERSION = "2024-07-01"
 ENDPOINT = f"https://{SERVICE}.search.windows.net"
 
@@ -68,6 +71,10 @@ def request(url: str, headers: dict[str, str], body: dict) -> dict:
 
     Embedding a corpus this size reliably trips the tokens-per-minute limit, which is a pause
     rather than a failure. Treating it as fatal threw away 7,392 embeddings on the first run.
+
+    Connection failures are retried for the same reason. A run of 17,863 exchanges makes
+    roughly 560 calls over half an hour, and a single dropped TCP connection ended one of them
+    at 43 % — the vectors already bought were fine, but the process was gone.
     """
     for attempt in range(8):
         req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST")
@@ -87,16 +94,20 @@ def request(url: str, headers: dict[str, str], body: dict) -> dict:
                 time.sleep(delay)
                 continue
             raise SystemExit(f"{url.split('?')[0]}: HTTP {error.code}\n{detail[:400]}") from error
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+            delay = min(2 ** attempt, 30)
+            print(f"    connection failed ({error}); retrying in {delay}s", flush=True)
+            time.sleep(delay)
 
-    raise SystemExit(f"{url.split('?')[0]}: gave up after repeated rate limiting")
+    raise SystemExit(f"{url.split('?')[0]}: gave up after repeated failures")
 
 
-def indexed_keys(search_key: str) -> set[str]:
+def indexed_keys(search_key: str, index: str) -> set[str]:
     """Every document key currently in the index."""
     keys: set[str] = set()
     skip = 0
     while True:
-        page = request(f"{ENDPOINT}/indexes/{INDEX}/docs/search?api-version={API_VERSION}",
+        page = request(f"{ENDPOINT}/indexes/{index}/docs/search?api-version={API_VERSION}",
                        {"Content-Type": "application/json", "api-key": search_key},
                        {"search": "*", "top": 1000, "skip": skip, "select": "id"})["value"]
         if not page:
@@ -119,7 +130,15 @@ def main() -> int:
                         help="delete indexed documents absent from the file. Needed whenever "
                              "the file shrinks: uploading overwrites by key, so an exchange "
                              "withdrawn from the corpus otherwise stays live in the index.")
+    parser.add_argument("--index", default=INDEX,
+                        help=f"target index (default {INDEX})")
+    parser.add_argument("--resume", action="store_true",
+                        help="skip exchanges already in the index. For continuing an "
+                             "interrupted run over an unchanged file: a document is only "
+                             "written after its vectors exist, so anything present is complete. "
+                             "Do not use it after editing the corpus — it would skip the edits.")
     args = parser.parse_args()
+    index = args.index
 
     path = Path(args.source)
     if not path.exists():
@@ -152,6 +171,12 @@ def main() -> int:
             "topic": "exemplar",
             "title": f"Past resolution ({row.get('channel') or 'email'})",
             "content": text,
+            # The customer's question on its own, embedded separately into `questionVector`.
+            # Retrieval is looking for an exchange that asked the same thing, and matching that
+            # against question-plus-reply matches partly on agent phrasing: measured over 1,000
+            # exchanges, question-only recall@3 beat whole-exchange recall@3. See
+            # `tools/evals/exemplar_recall.py`.
+            "question": row["question"][:MAX_EMBED_CHARS],
             "sourcePath": f"gorgias/ticket/{row['ticket_id']}",
             "sourceVersion": hashlib.sha256(text.encode()).hexdigest()[:16],
             "ticketId": str(row["ticket_id"]),
@@ -176,40 +201,57 @@ def main() -> int:
 
     openai_key, search_key = secret("openai-apikey"), secret("search-adminkey")
 
+    if args.resume:
+        already = indexed_keys(search_key, index)
+        before = len(documents)
+        documents = [d for d in documents if d["id"] not in already]
+        print(f"resuming           skipping {before - len(documents):,} already indexed, "
+              f"{len(documents):,} to go")
+        if not documents:
+            print("nothing left to index")
+            return 0
+
     if args.prune:
-        stale = indexed_keys(search_key) - {document["id"] for document in documents}
+        stale = indexed_keys(search_key, index) - {document["id"] for document in documents}
         print(f"pruning            {len(stale):,} document(s) no longer in the corpus")
         for start in range(0, len(stale), UPLOAD_BATCH):
             batch = list(stale)[start:start + UPLOAD_BATCH]
-            request(f"{ENDPOINT}/indexes/{INDEX}/docs/index?api-version={API_VERSION}",
+            request(f"{ENDPOINT}/indexes/{index}/docs/index?api-version={API_VERSION}",
                     {"Content-Type": "application/json", "api-key": search_key},
                     {"value": [{"@search.action": "delete", "id": key} for key in batch]})
 
     # Embed and upload in the same pass. Embedding everything first meant a rate limit at 40 %
     # discarded every vector bought up to that point; batching makes progress durable, and the
     # stable document key means a re-run simply overwrites what is already there.
-    uploaded = 0
-    for start in range(0, len(documents), EMBED_BATCH):
-        batch = documents[start:start + EMBED_BATCH]
+    def embed(texts: list[str]) -> list[list[float]]:
         payload = request("https://api.openai.com/v1/embeddings",
                           {"Content-Type": "application/json",
                            "Authorization": f"Bearer {openai_key}"},
                           {"model": EMBEDDING_MODEL,
-                           "input": [d["content"] for d in batch],
+                           "input": texts,
                            "dimensions": EMBEDDING_DIMENSIONS})
-        vectors = [item["embedding"] for item in payload["data"]]
+        return [item["embedding"] for item in payload["data"]]
 
-        request(f"{ENDPOINT}/indexes/{INDEX}/docs/index?api-version={API_VERSION}",
+    uploaded = 0
+    for start in range(0, len(documents), EMBED_BATCH):
+        batch = documents[start:start + EMBED_BATCH]
+        content_vectors = embed([d["content"] for d in batch])
+        question_vectors = embed([d["question"] or d["content"] for d in batch])
+
+        request(f"{ENDPOINT}/indexes/{index}/docs/index?api-version={API_VERSION}",
                 {"Content-Type": "application/json", "api-key": search_key},
-                {"value": [dict(document, contentVector=vector,
+                {"value": [dict(document,
+                                contentVector=content,
+                                questionVector=question,
                                 **{"@search.action": "mergeOrUpload"})
-                           for document, vector in zip(batch, vectors, strict=True)]})
+                           for document, content, question
+                           in zip(batch, content_vectors, question_vectors, strict=True)]})
 
         uploaded += len(batch)
         if uploaded % (EMBED_BATCH * 10) == 0 or uploaded == len(documents):
             print(f"  indexed {uploaded:,}/{len(documents):,}", flush=True)
 
-    print(f"\nindexed {uploaded:,} exemplar(s) into {INDEX}")
+    print(f"\nindexed {uploaded:,} exemplar(s) into {index}")
     return 0
 
 

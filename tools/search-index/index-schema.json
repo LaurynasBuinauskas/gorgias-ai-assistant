@@ -71,6 +71,24 @@
       "vectorSearchProfile": "policy-vector-profile"
     },
     {
+      "name": "question",
+      "type": "Edm.String",
+      "searchable": true,
+      "filterable": false,
+      "analyzer": "standard.lucene"
+    },
+    {
+      "name": "questionVector",
+      "type": "Collection(Edm.Single)",
+      "searchable": true,
+      "filterable": false,
+      "sortable": false,
+      "facetable": false,
+      "retrievable": false,
+      "dimensions": 1536,
+      "vectorSearchProfile": "policy-vector-profile"
+    },
+    {
       "name": "sourcePath",
       "type": "Edm.String",
       "searchable": false,

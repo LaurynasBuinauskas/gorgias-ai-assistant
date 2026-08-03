@@ -33,7 +33,12 @@ public sealed class KnowledgeOptions
     ///
     /// Same service, so no extra cost. The semantic quota is per service and is not isolated.
     /// </summary>
-    public string TicketIndexName { get; set; } = "tickets-v1";
+    /// <remarks>
+    /// `tickets-v2` adds `questionVector`, which <see cref="AzureSearchKnowledgeStore"/> now
+    /// requires for this corpus — `tickets-v1` rejects the query outright with "unknown field".
+    /// The two move together; rolling back the code means rolling this back with it.
+    /// </remarks>
+    public string TicketIndexName { get; set; } = "tickets-v2";
 
     /// <summary>
     /// Local development only. Production authenticates as the App Service managed identity,

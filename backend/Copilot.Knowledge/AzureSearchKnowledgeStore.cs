@@ -51,6 +51,20 @@ public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
     private SearchClient ClientFor(KnowledgeCorpus corpus) =>
         corpus == KnowledgeCorpus.Ticket ? _tickets : _knowledge;
 
+    /// <summary>
+    /// Exemplars are matched on the customer's question alone, not on the whole exchange.
+    ///
+    /// A ticket document is "Customer asked: … Support replied: …", so embedding all of it
+    /// matches partly on the agent's wording and on thread pleasantries — a warranty query
+    /// returned an exchange opening "Thank you for your speedy reply". Measured over 1,000
+    /// exchanges with paraphrased held-out questions, matching question-to-question retrieved
+    /// the right exchange more often at every k. See `tools/evals/exemplar_recall.py`.
+    ///
+    /// Requires `questionVector`, which exists from `tickets-v2` onward.
+    /// </summary>
+    private static string VectorFieldFor(KnowledgeCorpus corpus) =>
+        corpus == KnowledgeCorpus.Ticket ? "questionVector" : "contentVector";
+
     public async Task<IReadOnlyList<KnowledgeChunk>> RetrieveAsync(
         KnowledgeQuery query,
         CancellationToken cancellationToken)
@@ -73,7 +87,7 @@ public sealed class AzureSearchKnowledgeStore : IKnowledgeStore
                     new VectorizedQuery(embedding)
                     {
                         KNearestNeighborsCount = _options.VectorCandidates,
-                        Fields = { "contentVector" },
+                        Fields = { VectorFieldFor(query.Corpus) },
                     },
                 },
             },
