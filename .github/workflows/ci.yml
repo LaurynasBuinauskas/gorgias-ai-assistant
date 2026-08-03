@@ -37,3 +37,18 @@ jobs:
       - run: dotnet restore Copilot.slnx
       - run: dotnet build Copilot.slnx --no-restore --configuration Release
       - run: dotnet test Copilot.slnx --no-build --configuration Release
+
+  redaction:
+    # The rules that strip personal data out of ticket exemplars before they are indexed.
+    # Every leak class in this suite was found by a person reading exchanges, not by an
+    # automated check, and the decisions log calls this the load-bearing control for customer
+    # data — but until now nothing ran it except someone remembering to. No secrets and no
+    # network: it is fixtures against pure functions.
+    name: Redaction rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python tools/ingest/test_redaction.py

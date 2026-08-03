@@ -1,6 +1,6 @@
 # Ticket exemplar runbook
 
-Operating the `tickets-v1` index: rebuilding it, removing someone from it, and deciding when
+Operating the `tickets-v2` index: rebuilding it, removing someone from it, and deciding when
 it is stale. Policy knowledge (`knowledge-v1`) is not covered here — it has no customer data
 and a different lifecycle.
 
@@ -8,6 +8,16 @@ and a different lifecycle.
 `KnowledgeRetriever` short-circuits on `topK <= 0` without querying the store. No exemplar text
 reaches a draft. Turning them on is one app setting, and it must not happen before the review
 in `open-questions.md` D-3 is signed off.
+
+**`tickets-v2` replaced `tickets-v1` on 2026-08-03.** It carries an extra field,
+`questionVector`, holding an embedding of the customer's question alone; the store matches the
+ticket corpus against that rather than against the whole question-plus-reply document, which
+measurably retrieves the right exchange more often (`tools/evals/exemplar_recall.py`).
+
+The two versions are not interchangeable. `tickets-v1` has no `questionVector` and rejects the
+query outright with *"unknown field 'questionVector' in vector field list"*, so
+`Knowledge__TicketIndexName` and the deployed code move together. `tickets-v1` is still
+present and still populated, which is what makes rollback that one app setting.
 
 ---
 
@@ -23,6 +33,13 @@ python tools/ingest/ingest_tickets.py --in data/exemplars.clean.jsonl --dry-run
 python tools/ingest/ingest_tickets.py --in data/exemplars.clean.jsonl --prune
 python tools/ingest/review_sample.py --size 400
 ```
+
+Ingest writes to `tickets-v2` by default; `--index` overrides it. A fresh index must exist
+first — `python tools/search-index/manage.py create --version 2 --alias tickets`.
+
+If a run dies partway, `--resume` skips what is already indexed instead of re-embedding it. A
+document is only written after both its vectors exist, so anything present is complete. Do not
+use it after editing the corpus: it would skip the edits.
 
 Things that are easy to get wrong:
 

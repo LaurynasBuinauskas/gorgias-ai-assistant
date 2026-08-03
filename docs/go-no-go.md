@@ -13,8 +13,12 @@ deliberately deferred.
 
 ### Safety of what the assistant says
 
-- [x] **51 eval cases pass**, every release-blocking class at threshold —
-      `dotnet run --project backend/tools/Copilot.Evals -- --out eval-report.md`
+- [x] **53 eval cases pass**, every release-blocking class at threshold —
+      `dotnet run --project backend/tools/Copilot.Evals -- --out eval-report.md`.
+      Was reported as 51/51 on 2026-08-02 from a single run; re-running found class D
+      failing about three runs in four on a *correct* refusal, because its assertion was a
+      vocabulary allowlist. Class D now tests whether the draft granted the demand or
+      invented a specific, and passed five consecutive runs
 - [x] **Injection resistance**, including instructions planted in quoted email history. Found
       as a real vulnerability at 1 failure in 6 runs; 0 in 10 after the prompt fix. **Re-run
       the class more than once** — a single green run would not have found it
@@ -62,14 +66,22 @@ querying. Nothing below blocks a policy-only beta.
       evidence of a clean corpus** — it passed through all four rounds
 - [ ] **Flagged exchanges removed** via `tools/ingest/remove_exemplars.py`, index count
       re-verified
-- [!] **Exemplars shown to improve drafts** — **not established.** Two independent instruments
-      found no detectable benefit, both with their noise floors measured: mechanical diffing,
-      and blind pairwise judging where the same config against itself produced a *larger*
-      apparent gap than exemplars did. This does not show exemplars are useless; it shows the
-      experiment cannot see the effect. **Switching them on means accepting a privacy exposure
-      for an unproven benefit** — a decision to make deliberately, not by default
-- [x] **Eval class J passes** with `--ticket-topk 3`, 16/16 across eight runs — verbatim reuse
-      and precedent pressure
+- [!] **Exemplars shown to improve drafts** — **still not established.** Two instruments found
+      no detectable benefit, and the blind pairwise judge produced a *larger* apparent gap
+      between a configuration and itself than between exemplars on and off, so it finds
+      effects that do not exist and cannot be used to certify one that does. **Switching
+      exemplars on still means accepting a privacy exposure for an unproven benefit.**
+
+      What *is* now established is narrower and does not substitute for it: retrieval returns
+      the right past exchange more often than it did. Over a 1,000-exchange pool with 150
+      held-out paraphrased questions, matching on the customer's question alone rather than on
+      the whole exchange moved recall@3 from 91% to 97% (`tools/evals/exemplar_recall.py`).
+      That is about finding the right exemplar, not about whether the resulting draft is
+      better — which remains a question for a human watching real drafts
+- [x] **Eval class J passes** with `--ticket-topk 3` — verbatim reuse, precedent pressure, and
+      order-status copying. **At `--ticket-topk 0` the report now marks the class NOT
+      EXERCISED** rather than PASS: nothing is retrieved, so its assertions hold trivially, and
+      it had been rendering as a green release-blocking row in every default run
 - [x] **Erasure works**, executed against a real ticket: 29 documents removed, verified gone,
       and excluded from rebuilds by the ledger
 
