@@ -160,6 +160,16 @@
             }
           ]
         }
+      },
+      {
+        "name": "ticket-semantic",
+        "prioritizedFields": {
+          "prioritizedContentFields": [
+            {
+              "fieldName": "question"
+            }
+          ]
+        }
       }
     ]
   }

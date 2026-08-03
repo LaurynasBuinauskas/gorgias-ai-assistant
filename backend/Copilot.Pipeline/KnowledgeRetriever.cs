@@ -35,8 +35,15 @@ public sealed class KnowledgeRetriever(
         }
 
         // Issued together: they are independent reads and the draft waits on the slowest.
+        //
         // Only policy is reranked. The gate scores policy and nothing else, so reranking the
         // other three spent metered queries on rankings nothing reads.
+        //
+        // Exemplars stay unranked for a second, measured reason: reranking them is *worse*.
+        // Over 60 held-out paraphrased questions against the live index, semantic reranking on
+        // the customer's question moved recall@3 from 75% to 72% and ranked the right exchange
+        // lower on 15 queries against higher on 5 — while costing an extra metered query per
+        // draft, halving what the free allowance covers. See `tools/evals/exemplar_rerank.py`.
         var policy = Fetch(query, market, KnowledgeCorpus.Policy, KnowledgeExposure.Customer,
             _options.PolicyTopK, cancellationToken, rerank: true);
         var templates = Fetch(query, market, KnowledgeCorpus.Template, KnowledgeExposure.Customer,
