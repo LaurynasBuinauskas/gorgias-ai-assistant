@@ -189,14 +189,81 @@ def retrieve(key: str, question: str, vector: list[float], market: str) -> list[
                 {"Content-Type": "application/json", "api-key": key}, body)["value"]
 
 
+def gate_scores_from_fixtures(search_key: str, openai_key: str, root: Path) -> int:
+    """Score the real eval tickets, which come with ground truth about coverage.
+
+    The synthetic questions above are clean and the uncovered control is bare. Neither is a
+    ticket. These are: the same fixtures the eval suite runs, queried exactly as the pipeline
+    queries them — subject plus the newest customer message — with the market each case pins.
+    Class D's declining cases are the ones policy genuinely does not cover; everything else it
+    does. If the gate can work at all, these two groups separate here.
+    """
+    import yaml  # only needed for this mode
+
+    cases = []
+    for path in (root / "cases").rglob("*.yaml"):
+        case = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if case:
+            cases.append(case)
+
+    # The three that decline at the gate today, established by running them.
+    declines = {"d-company-financials", "d-employment", "d-workshop-visit"}
+
+    rows = []
+    for case in sorted(cases, key=lambda c: c["id"]):
+        fixture = root / "fixtures" / "tickets" / case["fixture"]
+        if not fixture.exists():
+            continue
+        ticket = json.loads(fixture.read_text(encoding="utf-8"))
+        newest = ""
+        for message in ticket.get("messages", []):
+            if not message.get("fromAgent") and not message.get("isInternalNote"):
+                newest = message.get("text") or ""
+        query = " ".join(part for part in [ticket.get("subject"), newest] if part).strip()
+        if not query:
+            continue
+
+        results = retrieve(search_key, query, embed(openai_key, query),
+                           case.get("market", "GLOBAL"))
+        score = results[0].get("@search.rerankerScore") if results else None
+        if score is None:
+            continue
+        rows.append((case["id"], case.get("market", "GLOBAL"),
+                     "uncovered" if case["id"] in declines else "covered", score))
+
+    covered = sorted(s for _, _, kind, s in rows if kind == "covered")
+    uncovered = sorted(s for _, _, kind, s in rows if kind == "uncovered")
+
+    print(f"\nGate scores on {len(rows)} real eval ticket(s)\n")
+    for case_id, market, kind, score in sorted(rows, key=lambda r: r[3]):
+        print(f"  {score:>6.3f}  {kind:<10} {market:<7} {case_id}")
+
+    if covered and uncovered:
+        print(f"\n  covered    n={len(covered):<3} min {covered[0]:.3f}  max {covered[-1]:.3f}")
+        print(f"  uncovered  n={len(uncovered):<3} min {uncovered[0]:.3f}  max {uncovered[-1]:.3f}")
+        if uncovered[-1] < covered[0]:
+            print(f"  → separated. Any threshold between {uncovered[-1]:.3f} and "
+                  f"{covered[0]:.3f} splits them.")
+        else:
+            print(f"  → overlapping: the highest uncovered ({uncovered[-1]:.3f}) is at or above "
+                  f"the lowest covered ({covered[0]:.3f}).\n    No threshold separates them.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--fixtures", default=None,
+                        help="score the real eval tickets instead of synthetic questions, "
+                             "e.g. backend/tools/Copilot.Evals")
     parser.add_argument("--queries", type=int, default=80)
     parser.add_argument("--seed", type=int, default=17)
     parser.add_argument("--out", default=None)
     args = parser.parse_args()
 
     search_key, openai_key = secret("search-adminkey"), secret("openai-apikey")
+
+    if args.fixtures:
+        return gate_scores_from_fixtures(search_key, openai_key, Path(args.fixtures))
 
     chunks = policy_chunks(search_key)
     print(f"{len(chunks)} policy chunk(s) indexed")
