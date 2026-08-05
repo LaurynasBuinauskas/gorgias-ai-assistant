@@ -6,8 +6,17 @@
 
 export type PanelContext = { readonly ticketId: string; readonly account: string };
 
-/** "assistant" = a draft the model produced, "agent" = an instruction the support agent gave. */
-export type ChatTurn = { readonly role: 'assistant' | 'agent'; readonly text: string };
+/**
+ * "assistant" = a draft the model produced, "agent" = an instruction the support agent gave.
+ * An assistant turn keeps the `progress` of the run that produced it, so the how-it-was-made
+ * timeline survives the draft's arrival instead of vanishing with the generating state.
+ * Panel-only: the field is stripped before turns are replayed to the backend.
+ */
+export type ChatTurn = {
+  readonly role: 'assistant' | 'agent';
+  readonly text: string;
+  readonly progress?: readonly Progress[];
+};
 
 /** Reading = fetching the ticket from Gorgias; writing = the model is producing tokens. */
 export type GeneratePhase = 'reading' | 'writing';
@@ -124,9 +133,14 @@ export function reduce(state: PanelState, event: PanelEvent): PanelState {
     case 'completed': {
       if (state.status !== 'generating') return state;
       const text = state.partial.trim();
-      const turns =
-        text.length > 0 ? [...state.turns, { role: 'assistant', text } as const] : state.turns;
-      return { status: 'idle', context: state.context, turns };
+      if (text.length === 0) {
+        return { status: 'idle', context: state.context, turns: state.turns };
+      }
+      const turn: ChatTurn =
+        state.progress.length > 0
+          ? { role: 'assistant', text, progress: state.progress }
+          : { role: 'assistant', text };
+      return { status: 'idle', context: state.context, turns: [...state.turns, turn] };
     }
 
     case 'insufficient':

@@ -90,13 +90,18 @@ const statusLabel = $derived.by(() => {
   return hasDraft ? 'Revising…' : 'Reading the ticket…';
 });
 
-// The pipeline's own steps, one line each, shown while it works and kept on a decline so
-// the refusal can say what was searched before it. Cleared when a draft lands — the
-// "Based on" sources row is the durable record for a finished draft.
+// The pipeline's own steps, one line each, shown live while it works and kept on a decline
+// so the refusal can say what was searched before it. When a draft lands, the same lines
+// stay with that draft's turn (see the turns loop) rather than vanishing with this state.
 const processLines = $derived.by<string[]>(() => {
   if (panel.status !== 'generating' && panel.status !== 'insufficient_data') return [];
   return panel.progress.flatMap(describeProgress);
 });
+
+/** The settled timeline of a finished draft — empty for agent turns and pre-progress drafts. */
+function timelineFor(turn: { readonly progress?: readonly Progress[] }): string[] {
+  return (turn.progress ?? []).flatMap(describeProgress);
+}
 
 function describeProgress(step: Progress): string[] {
   switch (step.stage) {
@@ -338,6 +343,13 @@ function onComposerKeydown(event: KeyboardEvent) {
           <div class="turn agent"><span>{turn.text}</span></div>
         {:else}
           <div class="turn assistant">
+            {#if timelineFor(turn).length > 0}
+              <div class="process settled">
+                {#each timelineFor(turn) as line, j (j)}
+                  <div class="step"><span class="tick">✓</span><span>{line}</span></div>
+                {/each}
+              </div>
+            {/if}
             <div class="draft">{turn.text}</div>
             <button class="ghost copy" onclick={() => copy(turn.text, i)}>
               {copiedIndex === i ? '✓ Copied' : 'Copy'}
@@ -617,6 +629,13 @@ function onComposerKeydown(event: KeyboardEvent) {
   .tick {
     color: #16a34a;
     font-size: 0.75rem;
+  }
+  /* The timeline kept on a finished draft: quieter than the live one, so provenance is
+     there to read without competing with the reply itself. */
+  .process.settled {
+    font-size: 0.74rem;
+    opacity: 0.8;
+    padding: 0 0.1rem;
   }
   .spinner {
     width: 13px;

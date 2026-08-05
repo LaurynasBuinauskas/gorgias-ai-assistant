@@ -82,7 +82,13 @@ export async function* streamDraft(
     response = await fetch(`${API_URL}/v1/tickets/${encodeURIComponent(ticketId)}/drafts/stream`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ v: 1, turns: payload.turns, instruction: payload.instruction }),
+      body: JSON.stringify({
+        v: 1,
+        // Only the wire fields: an assistant turn also carries its panel-only progress
+        // timeline, which the versioned request contract has no business receiving.
+        turns: payload.turns.map(({ role, text }) => ({ role, text })),
+        instruction: payload.instruction,
+      }),
       ...(signal ? { signal } : {}),
     });
   } catch {

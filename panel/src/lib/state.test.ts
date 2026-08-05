@@ -81,6 +81,18 @@ describe('process narration', () => {
     const idle = drafted();
     expect(reduce(idle, { type: 'progress', progress: searched })).toEqual(idle);
   });
+
+  it('keeps the narration on the draft it produced', () => {
+    let state = reduce(generating(), { type: 'progress', progress: searched });
+    state = reduce(state, { type: 'delta', text: 'Hallo' });
+    state = reduce(state, { type: 'completed' });
+
+    expect(state).toEqual({
+      status: 'idle',
+      context,
+      turns: [{ role: 'assistant', text: 'Hallo', progress: [searched] }],
+    });
+  });
 });
 
 describe('panel state machine', () => {

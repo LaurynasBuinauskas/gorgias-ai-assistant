@@ -185,6 +185,19 @@ describe('streamDraft', () => {
     });
   });
 
+  it('replays only the wire fields of a turn, not the panel-only timeline', async () => {
+    mockFetch(sseResponse(['event: done\ndata: {}\n\n']));
+
+    await collect(
+      streamDraft('t', '1', {
+        turns: [{ role: 'assistant', text: 'Hallo', progress: [{ stage: 'drafting' }] }],
+      }),
+    );
+
+    const [, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string).turns).toEqual([{ role: 'assistant', text: 'Hallo' }]);
+  });
+
   it('classifies citations by where they came from', async () => {
     // The backend has always sent these; the panel discarded them. What an agent needs from
     // this list is which claims came from published policy and which from someone else's
