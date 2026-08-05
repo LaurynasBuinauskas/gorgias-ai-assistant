@@ -237,7 +237,9 @@ public static class DraftPrompt
         // but a German ticket with German policy attached pulled the reply into German on
         // roughly one run in twelve; the last thing the model reads carries more weight.
         transcript.AppendLine(
-            "Draft the support agent's next reply to the customer. Write it in English.");
+            "Draft the support agent's next reply to the customer. Write it in English. "
+            + $"Then end with a line containing exactly {SourcesDelimiter} and the labels you "
+            + "relied on, one per line — the reply is not finished without it.");
         return transcript.ToString();
     }
 

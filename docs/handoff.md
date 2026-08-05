@@ -28,7 +28,7 @@ Read `CLAUDE.md` first, then `docs/gorgias-copilot-technical-reference.md`.
 | Fact | Re-verify with |
 |---|---|
 | HEAD `c2d8026`, branch `main` | `git log --oneline -1` |
-| **One uncommitted change** in `DraftPrompt.cs` — see §3 | `git status --porcelain` |
+| ~~One uncommitted change in `DraftPrompt.cs`~~ — **committed 2026-08-05 after the §3 measurement finished; see the resolution note in §3** | `git status --porcelain` |
 | API healthy, serving `c2d8026` | `curl -s https://gorgias-assistant-api.azurewebsites.net/health` |
 | **Exemplars are ON** — `Retrieval__TicketTopK=3` | `curl -s <api>/v1/config` → `"exemplars":true` |
 | `knowledge-v1` **394** docs · `tickets-v3` **17,402** docs | §8 snippet |
@@ -62,6 +62,13 @@ started and never finished.
 
 If you cannot show it helps, revert it. An unproven prompt line is worse than none, because the
 next person will assume it was measured.
+
+> **Resolved 2026-08-05 — committed.** Both steps were done. (1) 18 further `--class market`
+> runs: 0 failures, so **0 failing runs in 38** combined against the 1-in-12 base rate,
+> p ≈ 0.036 under the null. (2) Four full-suite runs: **53/53 in all four**, every class 100%,
+> class E 6/6 each time — no sign of the priming effect §6 warns about. The measured binary was
+> byte-checked to actually contain the new line, and each report was checked to show a real
+> 10/10 market row. Evidence in `docs/beta-progress.md`, 2026-08-05 entries.
 
 ## 4. What changed on 2026-08-03
 
