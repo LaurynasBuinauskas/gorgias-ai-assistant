@@ -140,12 +140,49 @@ public sealed class RelevanceGateTests
             chunks.Add(chunk);
         }
 
-        // The stream opens with Started so the draft id is known before anything else; the
-        // refusal follows it and no model call happens.
+        // The stream opens with Started so the draft id is known before anything else. The
+        // decline now narrates itself — what was searched, then the gate's verdict — so the
+        // agent sees why before the refusal message, and no model call happens.
         Assert.Collection(chunks,
             chunk => Assert.IsType<DraftChunk.Started>(chunk),
+            chunk => Assert.IsType<DraftChunk.Searched>(chunk),
+            chunk => Assert.Equal(
+                CoverageDecision.Declined, Assert.IsType<DraftChunk.Coverage>(chunk).Decision),
             chunk => Assert.IsType<DraftChunk.Insufficient>(chunk));
         Assert.Equal(0, chatClient.CallCount);
+    }
+
+    [Fact]
+    public async Task StreamNarratesSearchAndCoverageBeforeDrafting()
+    {
+        var chatClient = new RecordingChatClient();
+        var store = new FakeKnowledgeStore().ReturnsPolicyScoring(Threshold + 0.5, market: "DE");
+
+        var chunks = new List<DraftChunk>();
+        await foreach (var chunk in CreatePipeline(chatClient, store).StreamDraftAsync(
+            Ticket(), DraftRequest.Initial, CancellationToken.None))
+        {
+            chunks.Add(chunk);
+        }
+
+        var searched = Assert.Single(chunks.OfType<DraftChunk.Searched>());
+        Assert.Equal("GLOBAL", searched.Market);
+        Assert.Equal("Fallback", searched.Signal);
+        Assert.Equal(1, searched.Policy);
+        Assert.Equal(0, searched.Tickets);
+
+        var coverage = Assert.Single(chunks.OfType<DraftChunk.Coverage>());
+        Assert.Equal(CoverageDecision.Passed, coverage.Decision);
+
+        // The narration is strictly ordered: nothing about drafting before the gate has
+        // spoken, and no text before Drafting announces the model call.
+        var kinds = chunks.Select(c => c.GetType()).ToList();
+        Assert.True(kinds.IndexOf(typeof(DraftChunk.Searched))
+                    < kinds.IndexOf(typeof(DraftChunk.Coverage)));
+        Assert.True(kinds.IndexOf(typeof(DraftChunk.Coverage))
+                    < kinds.IndexOf(typeof(DraftChunk.Drafting)));
+        Assert.True(kinds.IndexOf(typeof(DraftChunk.Drafting))
+                    < kinds.IndexOf(typeof(DraftChunk.Delta)));
     }
 
     [Fact]

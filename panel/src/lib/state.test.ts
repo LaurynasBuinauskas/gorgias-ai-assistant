@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initialState, type PanelContext, type PanelState, reduce } from './state';
+import { initialState, type PanelContext, type PanelState, type Progress, reduce } from './state';
 
 const context: PanelContext = { ticketId: '271859246', account: 'timeresistance' };
 
@@ -28,6 +28,58 @@ describe('generate phase', () => {
       phase: 'writing',
       partial: 'x',
     });
+  });
+});
+
+describe('process narration', () => {
+  const searched: Progress = {
+    stage: 'searched',
+    market: 'DE',
+    signal: 'recipientaddress',
+    policy: 4,
+    templates: 1,
+    pastTickets: 3,
+    internalGuides: 0,
+  };
+  const declined: Progress = { stage: 'coverage', decision: 'declined' };
+
+  function generating(): PanelState {
+    return reduce(reduce(initialState, { type: 'authenticated', context }), { type: 'generate' });
+  }
+
+  it('accumulates progress during generation and starts the next run empty', () => {
+    let state = reduce(generating(), { type: 'progress', progress: searched });
+    state = reduce(state, {
+      type: 'progress',
+      progress: { stage: 'coverage', decision: 'passed' },
+    });
+    expect(state).toMatchObject({
+      status: 'generating',
+      progress: [searched, { stage: 'coverage', decision: 'passed' }],
+    });
+
+    state = reduce(state, { type: 'delta', text: 'Hi' });
+    state = reduce(state, { type: 'completed' });
+    expect(reduce(state, { type: 'generate' })).toMatchObject({ progress: [] });
+  });
+
+  it('carries the narration into insufficient_data so a decline can explain itself', () => {
+    let state = reduce(generating(), { type: 'progress', progress: searched });
+    state = reduce(state, { type: 'progress', progress: declined });
+    state = reduce(state, { type: 'insufficient', message: 'not covered' });
+
+    expect(state).toEqual({
+      status: 'insufficient_data',
+      context,
+      turns: [],
+      message: 'not covered',
+      progress: [searched, declined],
+    });
+  });
+
+  it('ignores progress outside generating', () => {
+    const idle = drafted();
+    expect(reduce(idle, { type: 'progress', progress: searched })).toEqual(idle);
   });
 });
 

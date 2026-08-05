@@ -42,7 +42,7 @@ public sealed class DraftingPipeline(
         var context = await retriever.RetrieveAsync(ticket, cancellationToken);
         RetrievalLog.Retrieved(logger, draftId, ticket, context);
 
-        if (!IsCovered(draftId, ticket, context))
+        if (DecideCoverage(draftId, ticket, context) == CoverageDecision.Declined)
         {
             return new PipelineResult.InsufficientKnowledge(NotCovered);
         }
@@ -89,11 +89,28 @@ public sealed class DraftingPipeline(
         var context = await retriever.RetrieveAsync(ticket, cancellationToken);
         RetrievalLog.Retrieved(logger, draftId, ticket, context);
 
-        if (!IsCovered(draftId, ticket, context))
+        if (!context.Bypassed)
         {
-            yield return new DraftChunk.Insufficient(NotCovered);
-            yield break;
+            yield return new DraftChunk.Searched(
+                context.Market.Market,
+                context.Market.Signal.ToString(),
+                context.Policy.Count,
+                context.Templates.Count,
+                context.Tickets.Count,
+                context.Internal.Count);
         }
+
+        if (DecideCoverage(draftId, ticket, context) is { } decision)
+        {
+            yield return new DraftChunk.Coverage(decision);
+            if (decision == CoverageDecision.Declined)
+            {
+                yield return new DraftChunk.Insufficient(NotCovered);
+                yield break;
+            }
+        }
+
+        yield return new DraftChunk.Drafting();
 
         var updates = chatClient.GetStreamingResponseAsync(
             BuildPrompt(draftId, ticket, request, context, out var citable),
@@ -140,14 +157,17 @@ public sealed class DraftingPipeline(
     /// support an answer, and improvising one is the failure mode this whole design exists to
     /// prevent. Returning here costs no tokens, because the model has not been called yet.
     ///
-    /// When retrieval is bypassed (rollback lever 2) the gate does not apply — that mode is a
-    /// deliberate revert to today's ungrounded behaviour, not an outage.
+    /// Returns <c>null</c> when retrieval is bypassed (rollback lever 2): the gate does not
+    /// apply — that mode is a deliberate revert to today's ungrounded behaviour, not an outage.
     /// </summary>
-    private bool IsCovered(string draftId, TicketContext ticket, RetrievedContext context)
+    private CoverageDecision? DecideCoverage(
+        string draftId,
+        TicketContext ticket,
+        RetrievedContext context)
     {
         if (context.Bypassed)
         {
-            return true;
+            return null;
         }
 
         // A gate that cannot score must stand down, not decline everything. Unranked results
@@ -159,12 +179,12 @@ public sealed class DraftingPipeline(
                 "Draft {DraftId} ticket {TicketId}: relevance gate skipped, semantic ranking "
                 + "unavailable. Coverage rests on the prompt rule alone until quota is restored",
                 draftId, ticket.Id);
-            return true;
+            return CoverageDecision.Skipped;
         }
 
         var covered = context.BestPolicyScore >= _retrieval.MinimumPolicyScore;
         RetrievalLog.Gate(logger, draftId, ticket, context, _retrieval.MinimumPolicyScore, covered);
-        return covered;
+        return covered ? CoverageDecision.Passed : CoverageDecision.Declined;
     }
 
     private static string NewDraftId() => Guid.NewGuid().ToString("N");

@@ -114,6 +114,27 @@ public sealed class DraftingPipelineTests
     }
 
     [Fact]
+    public async Task StreamDoesNotClaimASearchWhenRetrievalIsBypassed()
+    {
+        // Rollback lever 2 drafts ungrounded, deliberately. Narrating a search that never
+        // happened would tell the agent the draft is grounded when it is not.
+        var pipeline = CreatePipeline(new FakeChatClient("reply"));
+
+        var chunks = new List<DraftChunk>();
+        await foreach (var chunk in pipeline.StreamDraftAsync(
+            Ticket(CustomerMessage("Hallo")),
+            DraftRequest.Initial,
+            CancellationToken.None))
+        {
+            chunks.Add(chunk);
+        }
+
+        Assert.Empty(chunks.OfType<DraftChunk.Searched>());
+        Assert.Empty(chunks.OfType<DraftChunk.Coverage>());
+        Assert.Single(chunks.OfType<DraftChunk.Drafting>());
+    }
+
+    [Fact]
     public async Task StreamYieldsInsufficientWithoutCallingTheModel()
     {
         var chatClient = new FakeChatClient("never");

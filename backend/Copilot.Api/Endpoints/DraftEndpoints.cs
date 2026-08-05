@@ -96,6 +96,16 @@ public static class DraftEndpoints
                     draftRequest,
                     cancellationToken))
                 {
+                    // One "progress" event with a stage discriminator, so the process the
+                    // pipeline already goes through is visible in the panel rather than only
+                    // in the logs. Additive: a panel that predates it drops unknown event
+                    // names and behaves exactly as before.
+                    if (DraftStreamProgressV1.From(chunk) is { } progress)
+                    {
+                        await WriteEventAsync(http.Response, "progress", progress, cancellationToken);
+                        continue;
+                    }
+
                     switch (chunk)
                     {
                         case DraftChunk.Started started:

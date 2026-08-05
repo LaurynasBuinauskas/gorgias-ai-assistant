@@ -2,7 +2,7 @@
 // Authorization header and cannot POST, and we need both (the conversation is replayed
 // in the body on every turn).
 
-import type { ChatTurn } from './state';
+import type { ChatTurn, Progress } from './state';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5249';
 
@@ -29,6 +29,7 @@ export type Citation = {
 
 export type StreamEvent =
   | { readonly kind: 'ticket'; readonly ticket: TicketInfo }
+  | { readonly kind: 'progress'; readonly progress: Progress }
   | { readonly kind: 'delta'; readonly text: string }
   | { readonly kind: 'done'; readonly citations: readonly Citation[] }
   | { readonly kind: 'insufficient'; readonly message: string }
@@ -167,6 +168,8 @@ function parseFrame(frame: string): StreamEvent | null {
           messageCount: typeof parsed.messageCount === 'number' ? parsed.messageCount : 0,
         },
       };
+    case 'progress':
+      return parseProgress(parsed);
     case 'delta':
       return typeof parsed.text === 'string' ? { kind: 'delta', text: parsed.text } : null;
     case 'done':
@@ -181,4 +184,37 @@ function parseFrame(frame: string): StreamEvent | null {
     default:
       return null;
   }
+}
+
+/** An unknown stage or decision is dropped, not guessed at — same rule as unknown events. */
+function parseProgress(parsed: Record<string, unknown>): StreamEvent | null {
+  switch (parsed.stage) {
+    case 'searched':
+      return {
+        kind: 'progress',
+        progress: {
+          stage: 'searched',
+          market: typeof parsed.market === 'string' ? parsed.market : '',
+          signal: typeof parsed.signal === 'string' ? parsed.signal : '',
+          policy: count(parsed.policy),
+          templates: count(parsed.templates),
+          pastTickets: count(parsed.pastTickets),
+          internalGuides: count(parsed.internalGuides),
+        },
+      };
+    case 'coverage':
+      return parsed.decision === 'passed' ||
+        parsed.decision === 'declined' ||
+        parsed.decision === 'skipped'
+        ? { kind: 'progress', progress: { stage: 'coverage', decision: parsed.decision } }
+        : null;
+    case 'drafting':
+      return { kind: 'progress', progress: { stage: 'drafting' } };
+    default:
+      return null;
+  }
+}
+
+function count(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
 }

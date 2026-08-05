@@ -12,6 +12,23 @@ export type ChatTurn = { readonly role: 'assistant' | 'agent'; readonly text: st
 /** Reading = fetching the ticket from Gorgias; writing = the model is producing tokens. */
 export type GeneratePhase = 'reading' | 'writing';
 
+/**
+ * One step of the pipeline's work, streamed so the agent can watch it happen instead of
+ * staring at a spinner. Counts only — the backend never streams retrieved text here.
+ */
+export type Progress =
+  | {
+      readonly stage: 'searched';
+      readonly market: string;
+      readonly signal: string;
+      readonly policy: number;
+      readonly templates: number;
+      readonly pastTickets: number;
+      readonly internalGuides: number;
+    }
+  | { readonly stage: 'coverage'; readonly decision: 'passed' | 'declined' | 'skipped' }
+  | { readonly stage: 'drafting' };
+
 export type PanelState =
   | { readonly status: 'unauthenticated' }
   | { readonly status: 'idle'; readonly context: PanelContext; readonly turns: readonly ChatTurn[] }
@@ -21,12 +38,15 @@ export type PanelState =
       readonly turns: readonly ChatTurn[];
       readonly phase: GeneratePhase;
       readonly partial: string;
+      readonly progress: readonly Progress[];
     }
   | {
       readonly status: 'insufficient_data';
       readonly context: PanelContext;
       readonly turns: readonly ChatTurn[];
       readonly message: string;
+      /** Carried from the run so a decline can show what was searched before it refused. */
+      readonly progress: readonly Progress[];
     }
   | {
       readonly status: 'error';
@@ -41,6 +61,7 @@ export type PanelEvent =
   | { readonly type: 'context'; readonly context: PanelContext }
   | { readonly type: 'generate'; readonly instruction?: string }
   | { readonly type: 'writing' }
+  | { readonly type: 'progress'; readonly progress: Progress }
   | { readonly type: 'delta'; readonly text: string }
   | { readonly type: 'completed' }
   | { readonly type: 'insufficient'; readonly message: string }
@@ -76,11 +97,23 @@ export function reduce(state: PanelState, event: PanelEvent): PanelState {
       const turns = event.instruction
         ? [...state.turns, { role: 'agent', text: event.instruction } as const]
         : state.turns;
-      return { status: 'generating', context: state.context, turns, phase: 'reading', partial: '' };
+      return {
+        status: 'generating',
+        context: state.context,
+        turns,
+        phase: 'reading',
+        partial: '',
+        progress: [],
+      };
     }
 
     case 'writing':
       return state.status === 'generating' ? { ...state, phase: 'writing' } : state;
+
+    case 'progress':
+      return state.status === 'generating'
+        ? { ...state, progress: [...state.progress, event.progress] }
+        : state;
 
     case 'delta':
       // A token implies the fetch is done, even if the 'writing' event was missed.
@@ -103,6 +136,7 @@ export function reduce(state: PanelState, event: PanelEvent): PanelState {
             context: state.context,
             turns: state.turns,
             message: event.message,
+            progress: state.progress,
           }
         : state;
 

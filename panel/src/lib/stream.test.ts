@@ -53,6 +53,54 @@ describe('streamDraft', () => {
     ).toBe('Hallo Jane');
   });
 
+  it('parses progress stages and drops unknown or malformed ones', async () => {
+    mockFetch(
+      sseResponse([
+        'event: progress\ndata: {"stage":"searched","market":"DE","signal":"recipientaddress","policy":4,"templates":1,"pastTickets":3,"internalGuides":2}\n\n',
+        // Malformed counts become zero rather than NaN reaching the UI.
+        'event: progress\ndata: {"stage":"searched","market":"UK","signal":"shopdomain","policy":"lots","pastTickets":-1}\n\n',
+        'event: progress\ndata: {"stage":"coverage","decision":"passed"}\n\n',
+        'event: progress\ndata: {"stage":"drafting"}\n\n',
+        // A stage or decision this panel does not know is dropped, like an unknown event name.
+        'event: progress\ndata: {"stage":"mystery"}\n\n',
+        'event: progress\ndata: {"stage":"coverage","decision":"perhaps"}\n\n',
+        'event: done\ndata: {}\n\n',
+      ]),
+    );
+
+    const events = await collect(streamDraft('token', '42', { turns: [] }));
+
+    expect(events).toEqual([
+      {
+        kind: 'progress',
+        progress: {
+          stage: 'searched',
+          market: 'DE',
+          signal: 'recipientaddress',
+          policy: 4,
+          templates: 1,
+          pastTickets: 3,
+          internalGuides: 2,
+        },
+      },
+      {
+        kind: 'progress',
+        progress: {
+          stage: 'searched',
+          market: 'UK',
+          signal: 'shopdomain',
+          policy: 0,
+          templates: 0,
+          pastTickets: 0,
+          internalGuides: 0,
+        },
+      },
+      { kind: 'progress', progress: { stage: 'coverage', decision: 'passed' } },
+      { kind: 'progress', progress: { stage: 'drafting' } },
+      { kind: 'done', citations: [] },
+    ]);
+  });
+
   it('reports insufficient_data as its own event, not an error', async () => {
     mockFetch(sseResponse(['event: insufficient\ndata: {"message":"No customer message."}\n\n']));
 

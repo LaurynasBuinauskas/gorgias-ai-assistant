@@ -7,6 +7,7 @@ import {
   type PanelContext,
   type PanelEvent,
   type PanelState,
+  type Progress,
   reduce,
 } from './lib/state';
 import { type Citation, streamDraft, type TicketInfo } from './lib/stream';
@@ -85,8 +86,58 @@ const ticketMeta = $derived.by(() => {
 const statusLabel = $derived.by(() => {
   if (panel.status !== 'generating' || panel.partial.length > 0) return null;
   if (panel.phase === 'writing') return 'Writing the reply…';
+  if (panel.progress.length > 0) return 'Checking coverage…';
   return hasDraft ? 'Revising…' : 'Reading the ticket…';
 });
+
+// The pipeline's own steps, one line each, shown while it works and kept on a decline so
+// the refusal can say what was searched before it. Cleared when a draft lands — the
+// "Based on" sources row is the durable record for a finished draft.
+const processLines = $derived.by<string[]>(() => {
+  if (panel.status !== 'generating' && panel.status !== 'insufficient_data') return [];
+  return panel.progress.flatMap(describeProgress);
+});
+
+function describeProgress(step: Progress): string[] {
+  switch (step.stage) {
+    case 'searched':
+      return [describeMarket(step.market, step.signal), describeFound(step)];
+    case 'coverage':
+      if (step.decision === 'passed') return ['Coverage check passed'];
+      if (step.decision === 'skipped') return ['Coverage check skipped — ranking unavailable'];
+      return ['Not covered by the policy documents'];
+    case 'drafting':
+      // The phase flip to "Writing the reply…" narrates this one; a line too would repeat it.
+      return [];
+  }
+}
+
+function describeMarket(market: string, signal: string): string {
+  if (market === 'GLOBAL') return 'No market signal — using global policy';
+  const how =
+    signal === 'shopdomain'
+      ? 'from the order’s shop'
+      : signal === 'recipientaddress'
+        ? 'from the support inbox'
+        : signal === 'customercountry'
+          ? 'from the customer’s address'
+          : '';
+  return how ? `Market: ${market} (${how})` : `Market: ${market}`;
+}
+
+function describeFound(step: Extract<Progress, { stage: 'searched' }>): string {
+  const parts = [
+    countOf(step.policy, 'policy section'),
+    countOf(step.templates, 'approved reply', 'approved replies'),
+    countOf(step.pastTickets, 'past resolution'),
+    countOf(step.internalGuides, 'internal guide'),
+  ].filter((part) => part.length > 0);
+  return parts.length === 0 ? 'Found nothing relevant' : `Found ${parts.join(', ')}`;
+}
+
+function countOf(value: number, singular: string, plural = `${singular}s`): string {
+  return value === 0 ? '' : `${value} ${value === 1 ? singular : plural}`;
+}
 
 function dispatch(event: PanelEvent) {
   panel = reduce(panel, event);
@@ -177,7 +228,12 @@ async function run(newInstruction?: string) {
 
     if (event.kind === 'ticket') {
       ticketInfo = event.ticket;
-      dispatch({ type: 'writing' });
+    } else if (event.kind === 'progress') {
+      dispatch({ type: 'progress', progress: event.progress });
+      // "Writing" starts when the model is actually called, not when the ticket arrives —
+      // before the progress events, the ticket event was the only signal there was.
+      if (event.progress.stage === 'drafting') dispatch({ type: 'writing' });
+      void scrollToBottom();
     } else if (event.kind === 'delta') {
       dispatch({ type: 'delta', text: event.text });
       void scrollToBottom();
@@ -289,6 +345,14 @@ function onComposerKeydown(event: KeyboardEvent) {
           </div>
         {/if}
       {/each}
+
+      {#if processLines.length > 0}
+        <div class="process">
+          {#each processLines as line, i (i)}
+            <div class="step"><span class="tick">✓</span><span>{line}</span></div>
+          {/each}
+        </div>
+      {/if}
 
       {#if panel.status === 'generating' && panel.partial.length > 0}
         <div class="turn assistant">
@@ -535,6 +599,24 @@ function onComposerKeydown(event: KeyboardEvent) {
     color: var(--muted);
     font-size: 0.86rem;
     padding: 0.2rem 0.1rem;
+  }
+
+  .process {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    color: var(--muted);
+    font-size: 0.8rem;
+    padding: 0.1rem;
+  }
+  .step {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+  }
+  .tick {
+    color: #16a34a;
+    font-size: 0.75rem;
   }
   .spinner {
     width: 13px;
