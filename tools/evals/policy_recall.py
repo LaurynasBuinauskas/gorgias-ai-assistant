@@ -31,6 +31,7 @@ import json
 import random
 import shutil
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -215,11 +216,11 @@ def gate_scores_from_fixtures(search_key: str, openai_key: str, root: Path) -> i
         if not fixture.exists():
             continue
         ticket = json.loads(fixture.read_text(encoding="utf-8"))
-        newest = ""
-        for message in ticket.get("messages", []):
-            if not message.get("fromAgent") and not message.get("isInternalNote"):
-                newest = message.get("text") or ""
-        query = " ".join(part for part in [ticket.get("subject"), newest] if part).strip()
+        # Mirrors production BuildQuery: subject plus the two newest customer messages.
+        customer = [message.get("text") or ""
+                    for message in ticket.get("messages", [])
+                    if not message.get("fromAgent") and not message.get("isInternalNote")]
+        query = " ".join(part for part in [ticket.get("subject"), *customer[-2:]] if part).strip()
         if not query:
             continue
 
@@ -251,6 +252,10 @@ def gate_scores_from_fixtures(search_key: str, openai_key: str, root: Path) -> i
 
 
 def main() -> int:
+    # Windows consoles default to cp1252, which cannot print an arrow or an em-dash — and a
+    # crash in the summary is a silly way to lose a finished measurement.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fixtures", default=None,
                         help="score the real eval tickets instead of synthetic questions, "
@@ -329,14 +334,26 @@ def main() -> int:
         print(f"top reranker score, real ticket text: {spread(noisy_scores)}")
 
         # The gate's whole premise: that covered and uncovered questions score differently.
-        print("\nControl — questions policy does not answer:")
+        # Scored bare *and* dressed in ticket furniture, because the two have disagreed on
+        # record: "Christmas Greetings" carries 2.923 in go-no-go (a real, dressed ticket) and
+        # 1.340 from a later bare re-score. If dressing moves the score across the covered
+        # floor, the contradiction was never a contradiction — it was two different queries.
+        print("\nControl — questions policy does not answer (bare / dressed):")
         uncovered: list[float] = []
-        for question in UNCOVERED:
+        for position, question in enumerate(UNCOVERED):
             results = retrieve(search_key, question, embed(openai_key, question), "GLOBAL")
-            score = results[0].get("@search.rerankerScore") if results else None
-            if score is not None:
-                uncovered.append(score)
-                print(f"  {score:>6.3f}  {question[:66]}")
+            bare = results[0].get("@search.rerankerScore") if results else None
+            subject, dressed_text = dress(question, position)
+            dressed_query = f"{subject} {dressed_text}"
+            results = retrieve(search_key, dressed_query,
+                               embed(openai_key, dressed_query), "GLOBAL")
+            dressed_score = results[0].get("@search.rerankerScore") if results else None
+            for score in (bare, dressed_score):
+                if score is not None:
+                    uncovered.append(score)
+            print(f"  {bare if bare is not None else float('nan'):>6.3f} / "
+                  f"{dressed_score if dressed_score is not None else float('nan'):>6.3f}  "
+                  f"{question[:58]}")
 
         if uncovered:
             covered_floor = min(clean_scores + noisy_scores)

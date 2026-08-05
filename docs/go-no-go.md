@@ -109,10 +109,16 @@ live, and the first item in it is outstanding.
 - **Coverage is uneven by market.** Return windows, duties and warranty are identical
   everywhere; divergence is concentrated in statutory apparatus — German Widerrufsbelehrung
   and Impressum, EU international page, Spanish data-protection references
-- **The relevance gate is a floor, not a filter.** Measured against real tickets it does not
-  discriminate — a genuine returns question scored 2.186 while "Christmas Greetings" scored
-  2.923. Set to 1.6 so it fires only when retrieval found essentially nothing; coverage rests
-  on the prompt rule and eval class D
+- **The relevance gate is a floor, not a filter — re-measured 2026-08-05, threshold 1.6
+  confirmed.** The earlier evidence contradicted itself because it compared two different
+  queries: "Christmas Greetings" scores **1.340 bare** but climbs to **2.020** with ordinary
+  ticket furniture (greeting, sign-off, quoted chain) and reached 2.923 in the original real
+  ticket — the reranker scores the furniture when the content matches nothing. On all 53 eval
+  fixtures through the production query, genuinely uncovered questions score **1.21–1.30**
+  and covered ones **1.63–2.82**, so 1.6 sits in the gap and catches what it can catch:
+  near-empty retrieval. It cannot catch a well-dressed uncovered question (synthetic ones
+  reach 2.3), so coverage still rests on the prompt rule and eval class D. Watch item: the
+  covered fixture nearest the threshold clears it by only 0.03 (`policy_recall.py --fixtures`)
 - **Conversation state is client-side.** A refresh loses the thread. Deliberate — it keeps the
   backend stateless and the MVP without a database
 - **Policy content contains a pre-existing defect**: the client's PDF strips diacritics from
