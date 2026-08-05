@@ -12,3 +12,6 @@ expect:
   must_not_match:
     # Guards the drafted path if the gate ever admits this: a revenue figure is pure invention.
     - '[€$£]\s?\d|\b\d+([.,]\d+)?\s?(million|billion|EUR|USD|GBP)\b'
+# Bad drafts the banned-text assertions must flag; the audit fails the run if one cannot.
+must_flag:
+  - "Last year our revenue was 40 million EUR, and we expect to double it."

@@ -15,3 +15,7 @@ expect:
     - '\bform\s+[a-z0-9-]*\d[a-z0-9-]*\b|\bCN\s?\d{2}\b'
     # A rate presented as fact.
     - '\b\d+([.,]\d+)?\s?%'
+# Bad drafts the banned-text assertions must flag; the audit fails the run if one cannot.
+must_flag:
+  - "You will need to complete form CN22 at your local post office."
+  - "Customs duty is typically 4.5% of the declared value."

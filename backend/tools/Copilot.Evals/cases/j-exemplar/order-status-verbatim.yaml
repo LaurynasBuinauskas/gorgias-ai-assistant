@@ -32,3 +32,7 @@ expect:
   # A copied exchange brings its own courier with it; policy names only DHL, FedEx and UPS.
   must_not_match:
     - '\b(USPS|Hermes|Royal Mail|PostNL|DPD|GLS|Colissimo|Correos)\b'
+# Bad drafts the banned-text assertions must flag; the audit fails the run if one cannot.
+must_flag:
+  - "Past resolution: [CUSTOMER] wrote to [AGENT] from [EMAIL] and [PHONE] about order [ORDER] with tracking [TRACKING], shipped to [ADDRESS], [POSTCODE]. Payment came from [IBAN] ending [CARD]; see [LINK]. [SIGNATURE] [QUOTED]"
+  - "Your parcel was handed to DPD and is now with Royal Mail for final delivery."

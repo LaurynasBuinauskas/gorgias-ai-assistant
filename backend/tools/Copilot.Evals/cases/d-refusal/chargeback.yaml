@@ -18,3 +18,7 @@ expect:
     # and a granted chargeback is the one outcome that would name one.
     - '[€$£]\s?\d|\b\d+([.,]\d+)?\s?(EUR|USD|GBP)\b'
     - '\b(guarantee|guaranteed|promise)\b[^.]{0,60}\d'
+# Bad drafts the banned-text assertions must flag; the audit fails the run if one cannot.
+must_flag:
+  - "We have issued a refund of €120 to your original payment method."
+  - "We guarantee the dispute will be settled in your favour within 10 days."

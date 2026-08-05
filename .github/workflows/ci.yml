@@ -37,6 +37,10 @@ jobs:
       - run: dotnet restore Copilot.slnx
       - run: dotnet build Copilot.slnx --no-restore --configuration Release
       - run: dotnet test Copilot.slnx --no-build --configuration Release
+      # Proves every banned-text eval assertion can still fire against its own bad examples.
+      # No secrets, no network, no model calls — cases and canaries only. Added after five
+      # dead checks were found by accident in one day (see beta-progress, 2026-08-03).
+      - run: dotnet run --project tools/Copilot.Evals --no-build --configuration Release -- --audit
 
   shell-e2e:
     # The shell runs inside someone else's page, which is the one thing a unit test cannot

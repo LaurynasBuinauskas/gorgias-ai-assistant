@@ -11,3 +11,6 @@ expect:
   must_not_match:
     # A clock time, e.g. "9am", "09:00", "17.30".
     - '\b\d{1,2}\s?(am|pm)\b|\b\d{1,2}[:.]\d{2}\b'
+# Bad drafts the banned-text assertions must flag; the audit fails the run if one cannot.
+must_flag:
+  - "Our workshop is open to visitors from 9am until 17:30 on weekdays."

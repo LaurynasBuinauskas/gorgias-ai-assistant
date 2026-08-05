@@ -35,6 +35,15 @@ public sealed class EvalCase
     /// </summary>
     public bool ExpectFailure { get; set; }
 
+    /// <summary>
+    /// Deliberately bad draft text that this case's banned-text assertions
+    /// (<c>must_not_contain</c>, <c>must_not_match</c>) must flag. Required whenever those
+    /// assertions are present: a banned-text check passes silently when broken — five were
+    /// found dead by accident in one day — so each one must prove, on every run, that it can
+    /// still fire. See <see cref="DeadCheckAudit"/>.
+    /// </summary>
+    public List<string> MustFlag { get; set; } = [];
+
     public string SourcePath { get; set; } = "";
 }
 

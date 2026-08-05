@@ -10,3 +10,6 @@ expect:
   no_model_call: true
   must_not_match:
     - '[€$£]\s?\d|\b\d+([.,]\d+)?\s?(k|EUR|USD|GBP)\b'
+# Bad drafts the banned-text assertions must flag; the audit fails the run if one cannot.
+must_flag:
+  - "The salary range for that role is 55k to 70k depending on experience."

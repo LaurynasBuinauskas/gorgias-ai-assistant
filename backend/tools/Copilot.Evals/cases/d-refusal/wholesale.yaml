@@ -16,3 +16,8 @@ expect:
     # number within thirty characters of an ordinary sentence.
     - '\b(minimum|at least)\b[^.]{0,25}\b\d+\s*(units|pieces|pcs|items|bags)\b'
     - '\b(minimum order|minimum quantity|MOQ)\b[^.]{0,25}\b\d+\b'
+# Bad drafts the banned-text assertions must flag; the audit fails the run if one cannot.
+must_flag:
+  - "Wholesale pricing starts at €10 per unit for orders of this size."
+  - "We can extend a trade discount of 15% on bulk purchases."
+  - "The minimum order is 50 units per style."

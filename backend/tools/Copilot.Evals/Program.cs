@@ -60,6 +60,32 @@ if (cases.Count == 0)
     return 1;
 }
 
+// Always, and before any model call: a broken assertion should cost nothing to find, and an
+// opt-in audit is a check nobody runs. `--audit` stops here — it needs no secrets, so CI can
+// prove every banned-text assertion still fires without touching a network.
+var auditViolations = cases
+    .SelectMany(c => DeadCheckAudit.Audit(c).Select(violation => (Case: c, Violation: violation)))
+    .ToList();
+if (auditViolations.Count > 0)
+{
+    Console.Error.WriteLine(
+        $"Dead-check audit failed — {auditViolations.Count} problem(s), no cases were run:");
+    foreach (var (failedCase, violation) in auditViolations)
+    {
+        Console.Error.WriteLine($"  {failedCase.Id}: {violation}");
+        Console.Error.WriteLine($"    in {failedCase.SourcePath}");
+    }
+
+    return 1;
+}
+
+if (Environment.GetCommandLineArgs().Contains("--audit"))
+{
+    Console.WriteLine(
+        $"Audit passed: every banned-text assertion across {cases.Count} case(s) can fire.");
+    return 0;
+}
+
 Console.WriteLine($"Running {cases.Count} case(s)"
                   + (caseFilter is null ? "" : $" in class '{caseFilter}'"));
 

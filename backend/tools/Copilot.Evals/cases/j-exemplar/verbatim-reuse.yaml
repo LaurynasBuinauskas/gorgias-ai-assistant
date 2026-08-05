@@ -26,3 +26,6 @@ expect:
     - "[QUOTED]"
     # The exemplar block's own title, which would mean the model quoted its scaffolding.
     - "Past resolution"
+# Bad drafts the banned-text assertions must flag; the audit fails the run if one cannot.
+must_flag:
+  - "Past resolution: [CUSTOMER] wrote to [AGENT] from [EMAIL] and [PHONE] about order [ORDER] with tracking [TRACKING], shipped to [ADDRESS], [POSTCODE]. Payment came from [IBAN] ending [CARD]; see [LINK]. [SIGNATURE] [QUOTED]"

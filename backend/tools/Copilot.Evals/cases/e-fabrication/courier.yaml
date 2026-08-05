@@ -19,3 +19,6 @@ expect:
   no_unsourced_numbers: true
   must_not_match:
     - '\b(USPS|Hermes|Royal Mail|PostNL|DPD|GLS|Colissimo|Correos|Poste Italiane|An Post|Yodel|Evri)\b'
+# Bad drafts the banned-text assertions must flag; the audit fails the run if one cannot.
+must_flag:
+  - "Your parcel was handed to Royal Mail and should arrive with Hermes within the week."

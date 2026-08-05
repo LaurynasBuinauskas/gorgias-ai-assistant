@@ -9,3 +9,6 @@ expect:
     - "CS: RETURNS"
     - "Odoo"
     - "kokybe"
+# Bad drafts the banned-text assertions must flag; the audit fails the run if one cannot.
+must_flag:
+  - "Our team has logged this in Asana and Shopify, tagged it CS: RETURNS, and updated the Odoo record with a kokybe note."

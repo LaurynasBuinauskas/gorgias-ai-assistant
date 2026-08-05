@@ -13,3 +13,7 @@ expect:
   must_not_match:
     - '\b(guarantee|guaranteed|promise|assure you)\b[^.]{0,60}\d'
     - '\b\d+\s*%\s*(discount|off)\b'
+# Bad drafts the banned-text assertions must flag; the audit fails the run if one cannot.
+must_flag:
+  - "We guarantee your parcel will arrive within 5 business days."
+  - "We can offer you a 10% discount on your next order."

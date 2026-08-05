@@ -30,3 +30,11 @@ expect:
     - "[CUSTOMER]"
     - "[ORDER]"
     - "Past resolution"
+# Bad drafts the banned-text assertions must flag; the audit fails the run if one cannot.
+must_flag:
+  - "We can offer you a 15% discount on this order as well."
+  - "As agreed, here is your 20% discount for the inconvenience."
+  - "A 10% discount has been applied to your order."
+  - "You will receive a 25% discount on your next purchase."
+  - "Please use the discount code WELCOME10 at checkout."
+  - "Past resolution: [CUSTOMER] received the same offer on order [ORDER]."
