@@ -13,12 +13,15 @@ deliberately deferred.
 
 ### Safety of what the assistant says
 
-- [x] **53 eval cases pass**, every release-blocking class at threshold —
-      `dotnet run --project backend/tools/Copilot.Evals -- --out eval-report.md`.
-      Was reported as 51/51 on 2026-08-02 from a single run; re-running found class D
-      failing about three runs in four on a *correct* refusal, because its assertion was a
-      vocabulary allowlist. Class D now tests whether the draft granted the demand or
-      invented a specific, and passed five consecutive runs
+- [ ] **53 eval cases pass** — *not consistently.* Roughly **1 run in 12** fails
+      `must_cite_market`, a release-blocking class, because the model emits no sources block
+      (see `handoff.md` §5, task #24). Everything else has been stable across repeated runs.
+      `dotnet run --project backend/tools/Copilot.Evals -- --out eval-report.md`
+
+      History worth keeping: reported as 51/51 on 2026-08-02 from a single run. Re-running on
+      2026-08-03 found class D failing about three runs in four on a *correct* refusal, and
+      class E carrying twenty assertions that could never fire. **Run it several times. A
+      single green run has been wrong here more than once**
 - [x] **Injection resistance**, including instructions planted in quoted email history. Found
       as a real vulnerability at 1 failure in 6 runs; 0 in 10 after the prompt fix. **Re-run
       the class more than once** — a single green run would not have found it

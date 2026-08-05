@@ -273,10 +273,26 @@ What would actually settle it: a person reading **300–500** exchanges, weighte
 tail, rather than fifty. `tools/ingest/review_sample.py --size 400` produces it; the output
 lands under the git-ignored `data/` and must be sent to the reviewer directly, not committed.
 
-**What is not at stake:** the beta. `TicketTopK` is 0 and `KnowledgeRetriever` short-circuits
-on `topK <= 0`, so no exemplar text reaches a draft today and none reached the eval drafts
-either. The exposure is customer-derived data at rest in the search index. Enabling exemplars
-is a deliberate one-setting change that should follow the sign-off, not precede it.
+**Superseded on 2026-08-03. Exemplars are ON and this review is outstanding.**
+
+This section previously read: "What is not at stake: the beta. `TicketTopK` is 0 … Enabling
+exemplars is a deliberate one-setting change that should follow the sign-off, not precede it."
+
+It did precede it. `Retrieval__TicketTopK` was set to 3 on the user's explicit instruction with
+the review undrawn, and the corpus now reaches agents. The exposure is no longer only
+customer-derived data at rest — it is customer-derived text reaching drafts.
+
+What has changed since, and what has not:
+
+- **Changed.** 461 exchanges were withheld for handing out unpublished discount codes or
+  percentages, including codes built from customers' surnames. The whole corpus was swept with
+  the PII patterns: 17,402 documents, 9 patterns, zero findings.
+- **Not changed.** Every leak class ever found here was found by a person reading exchanges and
+  matched no pattern. A clean sweep is not a clean corpus, and this review is what covers the
+  difference.
+
+Off again is one setting, drilled and timed: `Retrieval__TicketTopK=0`, observable at
+`/v1/config` within about 100 seconds. See `docs/rollback-runbook.md` lever 5.
 
 ---
 
