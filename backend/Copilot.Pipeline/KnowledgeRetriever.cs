@@ -121,16 +121,22 @@ public sealed class KnowledgeRetriever(
                 cancellationToken);
 
     /// <summary>
-    /// The newest customer message plus the subject. Older messages describe what has already
-    /// been handled; the reply is answering the latest question, so retrieving on the whole
-    /// thread would dilute the query with resolved topics.
+    /// The subject plus the two newest customer messages. Measured, not reasoned
+    /// (`tools/evals/followup_recall.py`, 40 conversations per scenario): newest-only
+    /// collapses when the newest message is a follow-up — "yes please, go ahead" carries no
+    /// signal and topic recall@4 fell to 35% — while the whole thread dilutes a topic shift
+    /// down to 42%. Two messages hold both cases at 95%/98%: the question survives one
+    /// confirmation turn, and one settled topic's noise is not enough to drown a new one.
+    /// A single-message ticket builds exactly the query it always did.
     /// </summary>
     private static string BuildQuery(TicketContext ticket)
     {
         var newest = ticket.Messages
-            .LastOrDefault(m => m is { FromAgent: false, IsInternalNote: false });
+            .Where(m => m is { FromAgent: false, IsInternalNote: false })
+            .TakeLast(2)
+            .Select(m => m.Text);
 
-        return string.Join(" ", new[] { ticket.Subject, newest?.Text }
+        return string.Join(" ", new[] { ticket.Subject }.Concat(newest)
             .Where(part => !string.IsNullOrWhiteSpace(part)));
     }
 }

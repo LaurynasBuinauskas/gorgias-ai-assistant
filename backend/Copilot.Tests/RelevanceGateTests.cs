@@ -186,22 +186,31 @@ public sealed class RelevanceGateTests
     }
 
     [Fact]
-    public async Task RetrievalQueriesUseTheNewestCustomerMessageAndSubject()
+    public async Task RetrievalQueriesUseTheTwoNewestCustomerMessagesAndSubject()
     {
         var store = new FakeKnowledgeStore().ReturnsPolicyScoring(Threshold + 0.5);
         var ticket = Ticket(
             Customer("My first question about delivery"),
             Agent("We are checking"),
-            Customer("Actually, how do I return it?"));
+            Customer("Actually, how do I return it?"),
+            Agent("I can set that up for you — shall I?"),
+            Customer("Yes please, go ahead!"));
 
         await CreatePipeline(new RecordingChatClient(), store).GenerateDraftAsync(
             ticket, DraftRequest.Initial, CancellationToken.None);
 
         var query = store.Queries[0].Text;
+        // The newest message alone carries no signal; the question one turn earlier is the
+        // one retrieval must answer. Measured in tools/evals/followup_recall.py: newest-only
+        // held topic recall@4 at 35% on follow-ups, two-newest at 95%.
+        Assert.Contains("Yes please, go ahead!", query);
         Assert.Contains("Actually, how do I return it?", query);
         Assert.Contains("Order question", query);
-        // Older, already-handled messages would dilute the query with resolved topics.
+        // Beyond two, a settled topic's noise measurably dilutes a new question (42% @4 for
+        // the whole thread on a topic shift). Agent messages never enter the query.
         Assert.DoesNotContain("My first question about delivery", query);
+        Assert.DoesNotContain("We are checking", query);
+        Assert.DoesNotContain("shall I", query);
     }
 
     private static DraftingPipeline CreatePipeline(
