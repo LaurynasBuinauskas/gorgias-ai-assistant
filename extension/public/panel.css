@@ -27,23 +27,70 @@
   display: none;
 }
 
-/* Toggle button, only shown alongside the floating panel. */
+/* Toggle, only shown alongside the floating panel. Styled to sit quietly in Gorgias's
+   own idiom — white, hairline border, gray glyph — rather than shout in brand blue.
+   Open state: a round chevron handle straddling the panel's left edge.
+   Collapsed state: a labelled pill at the screen edge, since a bare arrow is invisible. */
 #copilot-panel-toggle {
   position: fixed;
-  top: 12px;
-  right: 412px;
+  top: 14px;
+  right: 386px; /* centred on the 400px panel's left edge */
   z-index: 2147483001;
-  font:
-    600 12px system-ui,
-    sans-serif;
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid #2b6cb0;
-  background: #2b6cb0;
-  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid #e0e0e6;
+  background: #fff;
+  color: #62626c;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   cursor: pointer;
+  font:
+    500 12px system-ui,
+    sans-serif;
+}
+
+#copilot-panel-toggle:hover {
+  background: #f5f5f7;
+  color: #1b1b20;
+}
+
+/* The arrow, drawn in CSS so the shell ships no assets. Points right when the panel is
+   open (collapse it away), left when collapsed (bring it back). */
+#copilot-panel-toggle::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  margin-left: -2px;
 }
 
 #copilot-panel-toggle.copilot-collapsed {
   right: 12px;
+  width: auto;
+  height: 30px;
+  padding: 0 12px 0 14px;
+}
+
+#copilot-panel-toggle.copilot-collapsed::after {
+  transform: rotate(135deg);
+  margin-left: 0;
+  order: -1;
+  margin-right: 2px;
+}
+
+/* The assistant's status dot, so the collapsed pill reads as the same feature the
+   panel header shows. */
+#copilot-panel-toggle.copilot-collapsed::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
 }

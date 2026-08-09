@@ -62,7 +62,12 @@ export function mountPanel(panelOrigin: string, anchorProbes: readonly string[])
     setVisible(visible) {
       frame.classList.toggle('copilot-hidden', !visible);
       toggle.classList.toggle('copilot-collapsed', !visible);
-      toggle.textContent = visible ? 'Hide Assistant' : 'Assistant';
+      // Open: a bare chevron handle on the panel edge (the arrow is drawn in CSS).
+      // Collapsed: a labelled pill, because a lone arrow at the screen edge is invisible.
+      toggle.textContent = visible ? '' : 'Assistant';
+      const label = visible ? 'Hide assistant' : 'Show assistant';
+      toggle.setAttribute('aria-label', label);
+      toggle.title = label;
     },
   };
 
@@ -70,7 +75,8 @@ export function mountPanel(panelOrigin: string, anchorProbes: readonly string[])
   const toggle = document.createElement('button');
   toggle.id = TOGGLE_ID;
   toggle.type = 'button';
-  toggle.textContent = 'Hide Assistant';
+  toggle.setAttribute('aria-label', 'Hide assistant');
+  toggle.title = 'Hide assistant';
   toggle.addEventListener('click', () =>
     panel.setVisible(frame.classList.contains('copilot-hidden')),
   );
