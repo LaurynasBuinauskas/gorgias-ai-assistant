@@ -81,6 +81,17 @@ Aliases do exist on the service — `knowledge` → `knowledge-v1`, `tickets` �
 are **unused**; they are a trap for anyone who assumes otherwise, so `rollback-runbook.md` says
 so explicitly.
 
+> **Relitigated 2026-08-13 while designing the policy-publish flow, and the decision holds —
+> with one new fact worth recording so the next person stops here.** The pinned
+> `Azure.Search.Documents` 12.0.0 *does* query an alias successfully (proven end to end with a
+> smoke eval through a test alias), which looks like a contradiction of the 404 above. It is
+> not: the SDK simply negotiates a non-stable service version, meaning production would rest
+> on exactly the preview contract this decision refuses. Production was briefly pointed at an
+> alias before this section was re-read, and reverted within minutes; the test alias was
+> deleted. Publish flips no index at all — it gates against a staging snapshot, then applies
+> the same gated content to the live index in place (the ingest is idempotent), keeping the
+> snapshot as the urgent-rollback target for the app-setting lever.
+
 `launch-plan.md` §9 lever 3 has been corrected, and the mechanism is written up in
 `rollback-runbook.md` lever 3: build the new version alongside the old, point
 `Knowledge__IndexName` at it, roll back with the same command and the old name. Costs a 70–90
