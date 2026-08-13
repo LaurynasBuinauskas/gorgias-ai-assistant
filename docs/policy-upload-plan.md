@@ -141,17 +141,16 @@ Blob < $1/mo; Function ≈ $0 at this volume; per-publish ≈ cents (embeddings 
 chunks + ~20 eval drafts); one extra retained index within current Search tier limits.
 Fits the ≤$30/month envelope with room.
 
-## 7. Decisions needed from the client (Phase 0)
+## 7. Phase 0 decisions — answered 2026-08-09
 
-1. **Who** — the named people allowed to upload and publish (start with one or two).
-2. **Formats** — is `.docx` + markdown acceptable, PDFs explicitly refused?
-3. **Approval model** — is uploader-publishes acceptable for the pilot, or do they want
-   maker–checker from day one (pushes phase 4 earlier)?
-4. **Scope confirmation** — published policy only; templates and internal guidance remain
-   dev-managed. Do they accept that boundary for v1?
-5. **Responsibility line** — a sentence in the beta terms: content correctness of uploaded
-   policy sits with the client; the system guards structure, leakage and market separation,
-   not truth.
+1. **Who** — open during the pilot; per-person identity deliberately deferred (phase 4).
+   Until then the admin token is the only gate and `uploadedBy` is trusted attribution.
+2. **Formats** — `.docx` + markdown confirmed; PDFs refused.
+3. **Approval model** — uploader publishes; no maker–checker for the pilot.
+4. **Scope** — published policy only; templates and internal guidance stay dev-managed
+   (explained and standing unless the client objects).
+5. **Responsibility line** — accepted; add the sentence to `docs/beta-terms.md` before the
+   client's first upload.
 
 ## 8. Explicitly out of scope for v1
 

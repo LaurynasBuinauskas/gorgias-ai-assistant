@@ -5,6 +5,7 @@ using Copilot.Api.Cors;
 using Copilot.Api.Endpoints;
 using Copilot.Api.Hosting;
 using Copilot.Api.RateLimiting;
+using Copilot.Api.Uploads;
 using Copilot.Gorgias;
 using Copilot.Knowledge;
 using Copilot.Pipeline;
@@ -61,6 +62,7 @@ builder.Services.AddClientAddressForwarding();
 builder.Services.AddApiProblemDetails();
 builder.Services.AddApiRateLimiting();
 builder.Services.AddBearerTokenAuthentication();
+builder.Services.AddPolicyUploads();
 builder.Services.AddPanelCors(builder.Environment, builder.Configuration);
 
 var app = builder.Build();
@@ -71,11 +73,13 @@ app.UseRouting();
 app.UseCors(CorsExtensions.PolicyName);
 app.UseRateLimiter();
 app.UseBearerTokenAuthentication();
+app.UseUploadBodySizeLimit();
 
 app.MapGet("/", () => "Copilot API");
 app.MapHealthEndpoints();
 app.MapDraftEndpoints();
 app.MapConfigEndpoints();
 app.MapTelemetryEndpoints();
+app.MapAdminPolicyEndpoints();
 
 app.Run();

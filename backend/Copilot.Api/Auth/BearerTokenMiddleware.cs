@@ -19,6 +19,9 @@ public sealed class BearerTokenMiddleware(RequestDelegate next, IOptions<ApiOpti
 
     private readonly byte[] _expectedToken = Encoding.UTF8.GetBytes(options.Value.BearerToken);
 
+    // Empty when unconfigured, which can never equal a provided token — admin fails closed.
+    private readonly byte[] _expectedAdminToken = Encoding.UTF8.GetBytes(options.Value.AdminToken);
+
     public async Task InvokeAsync(HttpContext context)
     {
         if (!context.Request.Path.StartsWithSegments("/v1") || IsPublic(context.Request.Path))
@@ -27,7 +30,13 @@ public sealed class BearerTokenMiddleware(RequestDelegate next, IOptions<ApiOpti
             return;
         }
 
-        if (!IsAuthorized(context.Request.Headers.Authorization.ToString()))
+        // Admin routes take only the admin token: the agents' drafting token must not be
+        // able to change what the whole team's drafts are grounded in.
+        var expected = context.Request.Path.StartsWithSegments("/v1/admin")
+            ? _expectedAdminToken
+            : _expectedToken;
+
+        if (!IsAuthorized(context.Request.Headers.Authorization.ToString(), expected))
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             return;
@@ -39,15 +48,15 @@ public sealed class BearerTokenMiddleware(RequestDelegate next, IOptions<ApiOpti
     private static bool IsPublic(PathString path) =>
         s_publicPaths.Any(publicPath => path.StartsWithSegments(publicPath));
 
-    private bool IsAuthorized(string authorizationHeader)
+    private static bool IsAuthorized(string authorizationHeader, byte[] expectedToken)
     {
         const string prefix = "Bearer ";
-        if (!authorizationHeader.StartsWith(prefix, StringComparison.Ordinal))
+        if (!authorizationHeader.StartsWith(prefix, StringComparison.Ordinal) || expectedToken.Length == 0)
         {
             return false;
         }
 
         var provided = Encoding.UTF8.GetBytes(authorizationHeader[prefix.Length..]);
-        return CryptographicOperations.FixedTimeEquals(provided, _expectedToken);
+        return CryptographicOperations.FixedTimeEquals(provided, expectedToken);
     }
 }
