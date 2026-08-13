@@ -24,6 +24,11 @@ var internalTopK = int.TryParse(Argument("--internal-topk"), out var internals)
     ? internals
     : new RetrievalOptions().InternalTopK;
 var draftsPath = Argument("--drafts");
+
+// Which knowledge index the run retrieves from. The default is production; a publish gate
+// points this at the staging index so the content-sensitive classes judge the corpus that
+// is about to go live, through exactly the retrieval system that will serve it.
+var knowledgeIndex = Argument("--knowledge-index") ?? "knowledge-v1";
 var root = AppContext.BaseDirectory;
 
 // Sweeping the whole corpus is a different job from running cases, so it exits here rather
@@ -111,7 +116,7 @@ var store = new AzureSearchKnowledgeStore(
     Options.Create(new KnowledgeOptions
     {
         Endpoint = "https://gorgias-assistant-search.search.windows.net",
-        IndexName = "knowledge-v1",
+        IndexName = knowledgeIndex,
         ApiKey = searchKey,
     }),
     embeddings,
@@ -123,6 +128,7 @@ var runner = new EvalRunner(
     store,
     new RetrievalOptions { TicketTopK = ticketTopK, InternalTopK = internalTopK },
     new DraftingOptions());
+Console.WriteLine($"Knowledge index: {knowledgeIndex}");
 Console.WriteLine($"Ticket exemplars: {(ticketTopK > 0 ? $"top {ticketTopK}" : "off")}");
 Console.WriteLine($"Internal guidance: {(internalTopK > 0 ? $"top {internalTopK}" : "off")}");
 var fixtures = Path.Combine(root, "fixtures", "tickets");
