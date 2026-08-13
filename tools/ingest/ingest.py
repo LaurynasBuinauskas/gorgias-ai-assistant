@@ -29,6 +29,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from chunking import split  # noqa: E402
+from staged import StagedDoc, to_policy_text  # noqa: E402
+from staged import fetch as fetch_staged  # noqa: E402
+from staged import validate as validate_staged  # noqa: E402
 
 KNOWLEDGE = Path("knowledge")
 CORPORA = {"policy": "policy", "template": "templates", "internal": "internal"}
@@ -75,9 +78,11 @@ def secret(name: str) -> str:
     return result.stdout.strip()
 
 
-def request(url: str, headers: dict[str, str], body: dict | None = None) -> dict:
+def request(url: str, headers: dict[str, str], body: dict | None = None,
+            method: str | None = None, tolerate: tuple[int, ...] = ()) -> dict | None:
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, method="POST" if data else "GET")
+    req = urllib.request.Request(url, data=data,
+                                 method=method or ("POST" if data else "GET"))
     for key, value in headers.items():
         req.add_header(key, value)
     try:
@@ -85,6 +90,8 @@ def request(url: str, headers: dict[str, str], body: dict | None = None) -> dict
             payload = response.read()
             return json.loads(payload) if payload else {}
     except urllib.error.HTTPError as error:
+        if error.code in tolerate:
+            return None
         raise SystemExit(f"{url.split('?')[0]} failed: HTTP {error.code}\n"
                          f"{error.read().decode(errors='replace')[:400]}") from error
 
@@ -102,9 +109,14 @@ def document_key(natural: str) -> str:
     return base64.urlsafe_b64encode(natural.encode()).decode().rstrip("=")
 
 
-def collect() -> list[Document]:
+def collect(staged: list[StagedDoc] | None = None) -> list[Document]:
     documents: list[Document] = []
     excluded: list[str] = []
+
+    # A staged upload replaces the git-managed policy for its (market, topic) — the client
+    # is editing the live document, not adding a competing version of it.
+    superseded = {(doc.market, doc.topic) for doc in staged or []}
+
     for corpus, folder in CORPORA.items():
         root = KNOWLEDGE / folder
         if not root.exists():
@@ -115,6 +127,11 @@ def collect() -> list[Document]:
             fields, body = parse_front_matter(path.read_text(encoding="utf-8"))
             if not fields:
                 print(f"warning: {path} has no front-matter; skipped", file=sys.stderr)
+                continue
+
+            if (corpus == "policy"
+                    and (fields.get("market", "GLOBAL"), fields.get("topic", "")) in superseded):
+                print(f"superseded by staged upload: {path.as_posix()}")
                 continue
 
             # A document can be internal *and* still be wrong to retrieve. Internal guidance is
@@ -154,18 +171,62 @@ def collect() -> list[Document]:
     for path in excluded:
         print(f"excluded from retrieval: {path}")
 
+    # Staged docs go through the same front-matter parse and chunker as a git file, so what
+    # gets indexed is exactly what a committed file with this content would produce.
+    for doc in staged or []:
+        source_path, text = to_policy_text(doc)
+        fields, body = parse_front_matter(text)
+        title = next((m.group(1) for m in [re.search(r"^#\s+(.+)$", body, re.M)] if m),
+                     doc.topic)
+        for chunk in split(body, "policy", f"{fields['market']} > {title}"):
+            natural = f"policy:{source_path}:{chunk.ordinal}"
+            documents.append(Document(
+                id=document_key(natural),
+                corpus="policy",
+                market=fields["market"],
+                exposure=fields["exposure"],
+                topic=fields["topic"],
+                tags=[],
+                title=chunk.title,
+                content=chunk.content,
+                source_path=source_path,
+                source_version=hashlib.sha256(chunk.content.encode()).hexdigest()[:16],
+                effective_date="",
+            ))
+
     return documents
 
 
-def existing_versions(key: str) -> dict[str, str]:
+def ensure_index(index: str, clone_from: str, key: str) -> None:
+    """Create a staging index as a schema clone of the live one, if it does not exist.
+
+    The schema (vector profile, semantic configuration, analyzers) must match exactly or
+    the eval gate would measure a different retrieval system than production runs.
+    """
+    headers = {"Content-Type": "application/json", "api-key": key}
+    if request(f"{ENDPOINT}/indexes/{index}?api-version={API_VERSION}",
+               headers, tolerate=(404,)) is not None:
+        return
+
+    definition = request(f"{ENDPOINT}/indexes/{clone_from}?api-version={API_VERSION}", headers)
+    assert definition is not None
+    definition = {k: v for k, v in definition.items() if not k.startswith("@odata")}
+    definition["name"] = index
+    request(f"{ENDPOINT}/indexes/{index}?api-version={API_VERSION}",
+            headers, definition, method="PUT")
+    print(f"created index {index} from {clone_from}'s schema")
+
+
+def existing_versions(index: str, key: str) -> dict[str, str]:
     """Map id -> sourceVersion for everything already indexed, so unchanged chunks are skipped."""
     versions: dict[str, str] = {}
     skip = 0
     while True:
         page = request(
-            f"{ENDPOINT}/indexes/{INDEX}/docs/search?api-version={API_VERSION}",
+            f"{ENDPOINT}/indexes/{index}/docs/search?api-version={API_VERSION}",
             {"Content-Type": "application/json", "api-key": key},
             {"search": "*", "select": "id,sourceVersion", "top": 1000, "skip": skip})
+        assert page is not None
         rows = page.get("value", [])
         versions.update({r["id"]: r.get("sourceVersion", "") for r in rows})
         if len(rows) < 1000:
@@ -186,7 +247,7 @@ def embed(texts: list[str], key: str) -> list[list[float]]:
     return vectors
 
 
-def upload(documents: list[Document], vectors: list[list[float]], key: str) -> None:
+def upload(documents: list[Document], vectors: list[list[float]], index: str, key: str) -> None:
     payload = [{
         "@search.action": "mergeOrUpload",
         "id": d.id, "corpus": d.corpus, "market": d.market, "exposure": d.exposure,
@@ -197,15 +258,15 @@ def upload(documents: list[Document], vectors: list[list[float]], key: str) -> N
     } for d, vector in zip(documents, vectors, strict=True)]
 
     for start in range(0, len(payload), UPLOAD_BATCH):
-        request(f"{ENDPOINT}/indexes/{INDEX}/docs/index?api-version={API_VERSION}",
+        request(f"{ENDPOINT}/indexes/{index}/docs/index?api-version={API_VERSION}",
                 {"Content-Type": "application/json", "api-key": key},
                 {"value": payload[start:start + UPLOAD_BATCH]})
         print(f"  uploaded {min(start + UPLOAD_BATCH, len(payload))}/{len(payload)}")
 
 
-def delete(ids: list[str], key: str) -> None:
+def delete(ids: list[str], index: str, key: str) -> None:
     for start in range(0, len(ids), UPLOAD_BATCH):
-        request(f"{ENDPOINT}/indexes/{INDEX}/docs/index?api-version={API_VERSION}",
+        request(f"{ENDPOINT}/indexes/{index}/docs/index?api-version={API_VERSION}",
                 {"Content-Type": "application/json", "api-key": key},
                 {"value": [{"@search.action": "delete", "id": i}
                            for i in ids[start:start + UPLOAD_BATCH]]})
@@ -227,9 +288,44 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true",
                         help="chunk and report without embedding or writing")
+    parser.add_argument("--index", default=INDEX,
+                        help=f"target index (default {INDEX}); a missing target is created "
+                             "as a schema clone for staging builds")
+    parser.add_argument("--staged", action="append", default=[],
+                        help="blob name in knowledge-drafts to merge in; repeatable. "
+                             "Each staged (market, topic) supersedes its git-managed policy")
+    parser.add_argument("--report", default=None,
+                        help="write the validation report JSON here")
     args = parser.parse_args()
 
-    documents = collect()
+    staged_docs = []
+    if args.staged:
+        import os
+        connection = os.environ.get("STORAGE_CONNECTION") or secret("storage-connection")
+        staged_docs = fetch_staged(args.staged, connection)
+
+    # Content validation blocks before anything touches an index — a publish must be able
+    # to show the uploader exactly why nothing happened.
+    findings = [f for doc in staged_docs for f in validate_staged(doc)]
+    documents = collect(staged_docs)
+
+    if args.report:
+        Path(args.report).write_text(json.dumps({
+            "staged": [d.blob_name for d in staged_docs],
+            "findings": [{"blobName": f.blob_name, "kind": f.kind, "message": f.message}
+                         for f in findings],
+            "chunks": len(documents),
+            "index": args.index,
+        }, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"validation report written to {args.report}")
+
+    if findings:
+        print(f"{len(findings)} validation finding(s); nothing was written:", file=sys.stderr)
+        for finding in findings:
+            print(f"  [{finding.kind}] {finding.blob_name}: {finding.message}",
+                  file=sys.stderr)
+        return 2
+
     if not documents:
         print("error: no documents found under knowledge/", file=sys.stderr)
         return 1
@@ -240,7 +336,9 @@ def main() -> int:
         return 0
 
     search_key = secret("search-adminkey")
-    indexed = existing_versions(search_key)
+    if args.index != INDEX:
+        ensure_index(args.index, INDEX, search_key)
+    indexed = existing_versions(args.index, search_key)
 
     changed = [d for d in documents if indexed.get(d.id) != d.source_version]
     stale = sorted(set(indexed) - {d.id for d in documents})
@@ -248,9 +346,9 @@ def main() -> int:
 
     if changed:
         vectors = embed([d.content for d in changed], secret("openai-apikey"))
-        upload(changed, vectors, search_key)
+        upload(changed, vectors, args.index, search_key)
     if stale:
-        delete(stale, search_key)
+        delete(stale, args.index, search_key)
     if not changed and not stale:
         print("no changes — nothing embedded, nothing written")
     return 0

@@ -1,0 +1,4 @@
+# Runtime dependencies of the staged-upload path (`staged.py`). The classic ingest of the
+# git tree deliberately needs nothing beyond the standard library and the Azure CLI.
+mammoth==1.12.1
+azure-storage-blob==12.30.0

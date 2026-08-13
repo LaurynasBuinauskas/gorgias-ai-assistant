@@ -73,3 +73,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: python tools/ingest/test_redaction.py
+      # Staged client uploads: conversion fidelity, locked exposure, supersede semantics,
+      # and the content checks that block a publish. mammoth is needed so the .docx path
+      # is genuinely exercised rather than skipped.
+      - run: pip install mammoth
+      - run: python tools/ingest/test_staged.py
