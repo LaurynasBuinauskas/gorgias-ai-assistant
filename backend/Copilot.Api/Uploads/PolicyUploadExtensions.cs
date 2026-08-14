@@ -15,6 +15,15 @@ public static class PolicyUploadExtensions
                 + "secret 'storage-connection'.");
 
         services.AddSingleton<IPolicyDraftStore, BlobPolicyDraftStore>();
+
+        // The publish half. The GitHub token is optional on purpose: without it the
+        // coordinator refuses with a message instead of the app failing to start.
+        services.AddOptions<PolicyPublishOptions>()
+            .BindConfiguration(PolicyPublishOptions.SectionName);
+        services.AddHttpClient(nameof(GitHubWorkflowTrigger));
+        services.AddSingleton<IPublishTrigger, GitHubWorkflowTrigger>();
+        services.AddSingleton<IPublishStateStore, BlobPublishStateStore>();
+        services.AddSingleton<PublishCoordinator>();
         return services;
     }
 }

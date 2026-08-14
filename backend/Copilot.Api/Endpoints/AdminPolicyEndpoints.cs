@@ -73,6 +73,62 @@ public static class AdminPolicyEndpoints
             return Results.Ok(new { v = 1, drafts = drafts.Select(PolicyDraftV1.From) });
         });
 
+        app.MapPost("/v1/admin/policy/publish", async (
+            PublishRequestV1? request,
+            PublishCoordinator coordinator,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null)
+            {
+                return Results.BadRequest(new { message = "Send { blobs, publishedBy }." });
+            }
+
+            var decision = await coordinator.StartPublishAsync(
+                request.Blobs, request.PublishedBy, cancellationToken);
+            return decision.PublishId is null
+                ? Results.Json(new { message = decision.Refusal }, statusCode: StatusCodes.Status409Conflict)
+                : Results.Ok(new { v = 1, publishId = decision.PublishId });
+        });
+
+        app.MapPost("/v1/admin/policy/rollback", async (
+            RollbackRequestV1? request,
+            PublishCoordinator coordinator,
+            CancellationToken cancellationToken) =>
+        {
+            var decision = await coordinator.StartRollbackAsync(
+                request?.PublishedBy ?? "", cancellationToken);
+            return decision.PublishId is null
+                ? Results.Json(new { message = decision.Refusal }, statusCode: StatusCodes.Status409Conflict)
+                : Results.Ok(new { v = 1, publishId = decision.PublishId });
+        });
+
+        app.MapGet("/v1/admin/policy/publishes/{publishId}", async (
+            string publishId,
+            IPublishStateStore state,
+            CancellationToken cancellationToken) =>
+        {
+            var status = await state.ReadStatusAsync(publishId, cancellationToken);
+            if (status is null)
+            {
+                return Results.NotFound();
+            }
+
+            // The findings ride along on a validation block so the panel can show the
+            // uploader exactly why nothing happened, without a second round trip.
+            var validation = status.Step == "blocked-by-validation"
+                ? await state.ReadValidationReportAsync(publishId, cancellationToken)
+                : null;
+            return Results.Ok(new { v = 1, status, validation });
+        });
+
+        app.MapGet("/v1/admin/policy/publishes", async (
+            IPublishStateStore state,
+            CancellationToken cancellationToken) =>
+        {
+            var ledgers = await state.ListLedgersAsync(cancellationToken);
+            return Results.Ok(new { v = 1, publishes = ledgers });
+        });
+
         return app;
     }
 
