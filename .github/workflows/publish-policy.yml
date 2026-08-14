@@ -161,5 +161,15 @@ jobs:
       - name: Report failure to the status blob
         if: failure()
         run: |
+          # Only for failures no step explained: a specific status (blocked-by-validation,
+          # gate-failed) must not be clobbered by this catch-all — it was, once, and the API
+          # showed "workflow failed" where the findings should have been.
           source /tmp/status.sh 2>/dev/null || true
-          status workflow failed || true
+          CURRENT=$(az storage blob download --connection-string "$STORAGE_CONNECTION" \
+            -c knowledge-versions -n "$STATUS_PREFIX/status.json" -f /dev/stdout \
+            --only-show-errors 2>/dev/null || echo '{}')
+          if echo "$CURRENT" | jq -e '.state == "failed"' > /dev/null 2>&1; then
+            echo "a specific failure status is already written; leaving it"
+          else
+            status workflow failed || true
+          fi
