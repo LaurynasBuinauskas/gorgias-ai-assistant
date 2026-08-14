@@ -21,6 +21,13 @@ public sealed record PolicyDraftV1
 
     public required long SizeBytes { get; init; }
 
+    /// <summary>"staged" until a publish carries it to the live index, then "published".</summary>
+    public required string State { get; init; }
+
+    public string? PublishId { get; init; }
+
+    public DateTimeOffset? PublishedAt { get; init; }
+
     public static PolicyDraftV1 From(PolicyDraft draft) => new()
     {
         V = 1,
@@ -31,5 +38,8 @@ public sealed record PolicyDraftV1
         UploadedBy = draft.UploadedBy,
         UploadedAt = draft.UploadedAt,
         SizeBytes = draft.SizeBytes,
+        State = draft.PublishId is null ? "staged" : "published",
+        PublishId = draft.PublishId,
+        PublishedAt = draft.PublishedAt,
     };
 }

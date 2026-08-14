@@ -17,4 +17,9 @@ public sealed record PolicyDraft
     public required DateTimeOffset UploadedAt { get; init; }
 
     public required long SizeBytes { get; init; }
+
+    /// <summary>Set by the publish workflow once this upload has reached the live index.</summary>
+    public string? PublishId { get; init; }
+
+    public DateTimeOffset? PublishedAt { get; init; }
 }

@@ -61,6 +61,10 @@ public sealed class BlobPolicyDraftStore(IOptions<PolicyUploadOptions> options) 
                 UploadedBy = DecodeUploader(Field("uploadedBy")),
                 UploadedAt = item.Properties.CreatedOn ?? default,
                 SizeBytes = item.Properties.ContentLength ?? 0,
+                PublishId = metadata.TryGetValue("publishId", out var publishId) ? publishId : null,
+                PublishedAt = DateTimeOffset.TryParse(Field("publishedAt"), out var publishedAt)
+                    ? publishedAt
+                    : null,
             });
         }
 
