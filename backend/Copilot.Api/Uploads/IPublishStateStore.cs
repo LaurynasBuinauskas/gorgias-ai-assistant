@@ -46,6 +46,9 @@ public interface IPublishStateStore
 
     Task WriteQueuedStatusAsync(string publishId, CancellationToken cancellationToken);
 
+    /// <summary>Marks a publish whose dispatch to the workflow failed — terminal, never ran.</summary>
+    Task WriteTriggerFailedStatusAsync(string publishId, CancellationToken cancellationToken);
+
     /// <summary>Ledgers of completed publishes, newest first.</summary>
     Task<IReadOnlyList<PublishLedger>> ListLedgersAsync(CancellationToken cancellationToken);
 

@@ -82,7 +82,8 @@ public sealed class PublishCoordinator(
         if (inflightId is not null)
         {
             var inflight = await state.ReadStatusAsync(inflightId, cancellationToken);
-            if (inflight is not null && !s_terminalStates.Contains(inflight.State))
+            if (inflight is not null && !s_terminalStates.Contains(inflight.State)
+                && !IsStale(inflight))
             {
                 return PublishDecision.Refused(
                     $"Publish {inflightId} is still running ({inflight.Step}). One at a time.");
@@ -91,12 +92,37 @@ public sealed class PublishCoordinator(
 
         var publishId = Guid.NewGuid().ToString("N")[..12];
         await state.WriteQueuedStatusAsync(publishId, cancellationToken);
+        try
+        {
+            await trigger.TriggerAsync(publishId, blobs, publishedBy.Trim(), mode, cancellationToken);
+        }
+        catch (Exception error)
+        {
+            // The first live run wedged the guard on exactly this: a failed dispatch after
+            // the lock was taken left a "queued" publish nothing would ever finish. The
+            // failure is recorded so the history explains itself, the lock is never taken,
+            // and the caller gets the reason instead of a bare 500.
+            await state.WriteTriggerFailedStatusAsync(publishId, cancellationToken);
+            logger.LogError(error, "Policy {Mode} {PublishId} could not be dispatched", mode, publishId);
+            return PublishDecision.Refused(
+                "The publish could not be handed to the workflow — likely the GitHub token's "
+                + "permissions. Nothing was changed; try again once it is fixed.");
+        }
+
+        // Only after a successful dispatch: an undispatched publish must never hold the lock.
         await state.WriteInflightAsync(publishId, cancellationToken);
-        await trigger.TriggerAsync(publishId, blobs, publishedBy.Trim(), mode, cancellationToken);
 
         logger.LogInformation(
             "Policy {Mode} {PublishId} started by {PublishedBy}: {BlobCount} blob(s)",
             mode, publishId, publishedBy.Trim(), blobs.Count);
         return PublishDecision.Started(publishId);
     }
+
+    /// <summary>
+    /// A dispatched workflow replaces "queued" within about a minute of starting. A queued
+    /// status this old means the run never started (or the runner died before its first
+    /// write) and will never finish — holding the lock for it would wedge publishing.
+    /// </summary>
+    private static bool IsStale(PublishStatus status) =>
+        status.Step == "queued" && DateTimeOffset.UtcNow - status.UpdatedAt > TimeSpan.FromMinutes(10);
 }

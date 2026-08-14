@@ -107,6 +107,49 @@ public sealed class PublishCoordinatorTests
     }
 
     [Fact]
+    public async Task AFailedDispatchNeverTakesTheLock()
+    {
+        // The first live run wedged on exactly this: dispatch failed after the lock was
+        // taken, leaving a queued publish nothing would ever finish.
+        _drafts.Add("DE/returns/one.md");
+        _trigger.ThrowOnTrigger = true;
+        var coordinator = Coordinator();
+
+        var failed = await coordinator.StartPublishAsync(
+            ["DE/returns/one.md"], "Rasa", CancellationToken.None);
+
+        Assert.Null(failed.PublishId);
+        Assert.Contains("could not be handed to the workflow", failed.Refusal);
+        Assert.Null(_state.Inflight);
+        Assert.Contains(_state.Statuses.Values,
+            s => s is { Step: "trigger-failed", State: "failed" });
+
+        _trigger.ThrowOnTrigger = false;
+        var retry = await coordinator.StartPublishAsync(
+            ["DE/returns/one.md"], "Rasa", CancellationToken.None);
+        Assert.NotNull(retry.PublishId);
+    }
+
+    [Fact]
+    public async Task AStaleQueuedLockIsIgnored()
+    {
+        // A dispatched run replaces "queued" within a minute; ten minutes of queued means
+        // it never started and must not wedge publishing forever.
+        _drafts.Add("DE/returns/one.md");
+        _state.Statuses["ghost"] = new PublishStatus
+        {
+            PublishId = "ghost", Step = "queued", State = "running",
+            UpdatedAt = DateTimeOffset.UtcNow.AddMinutes(-11),
+        };
+        await _state.WriteInflightAsync("ghost", CancellationToken.None);
+
+        var decision = await Coordinator().StartPublishAsync(
+            ["DE/returns/one.md"], "Rasa", CancellationToken.None);
+
+        Assert.NotNull(decision.PublishId);
+    }
+
+    [Fact]
     public async Task RollbackPublishesThePreviousLedgersBlobs()
     {
         _state.Ledgers.Add(Ledger("older", ["DE/returns/old.md"], new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero)));
@@ -195,6 +238,16 @@ public sealed class PublishCoordinatorTests
             return Task.CompletedTask;
         }
 
+        public Task WriteTriggerFailedStatusAsync(string publishId, CancellationToken ct)
+        {
+            Statuses[publishId] = new PublishStatus
+            {
+                PublishId = publishId, Step = "trigger-failed", State = "failed",
+                UpdatedAt = DateTimeOffset.UtcNow,
+            };
+            return Task.CompletedTask;
+        }
+
         public Task<IReadOnlyList<PublishLedger>> ListLedgersAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<PublishLedger>>(
                 [.. Ledgers.OrderByDescending(l => l.PublishedAt)]);
@@ -214,6 +267,8 @@ public sealed class PublishCoordinatorTests
 
         public bool Configured { get; set; } = true;
 
+        public bool ThrowOnTrigger { get; set; }
+
         public List<Call> Calls { get; } = [];
 
         public bool IsConfigured => Configured;
@@ -221,6 +276,11 @@ public sealed class PublishCoordinatorTests
         public Task TriggerAsync(string publishId, IReadOnlyList<string> blobs, string publishedBy,
             string mode, CancellationToken ct)
         {
+            if (ThrowOnTrigger)
+            {
+                throw new InvalidOperationException("GitHub refused the workflow dispatch: 403");
+            }
+
             Calls.Add(new Call(publishId, blobs, publishedBy, mode));
             return Task.CompletedTask;
         }

@@ -25,17 +25,21 @@ public sealed class BlobPublishStateStore(
         return report.ValueKind == JsonValueKind.Undefined ? null : report;
     }
 
-    public async Task WriteQueuedStatusAsync(string publishId, CancellationToken cancellationToken)
-    {
-        var status = new PublishStatus
+    public Task WriteQueuedStatusAsync(string publishId, CancellationToken cancellationToken) =>
+        WriteStatusAsync(publishId, "queued", "running", cancellationToken);
+
+    public Task WriteTriggerFailedStatusAsync(string publishId, CancellationToken cancellationToken) =>
+        WriteStatusAsync(publishId, "trigger-failed", "failed", cancellationToken);
+
+    private Task WriteStatusAsync(
+        string publishId, string step, string state, CancellationToken cancellationToken) =>
+        UploadAsync($"publishes/{publishId}/status.json", new PublishStatus
         {
             PublishId = publishId,
-            Step = "queued",
-            State = "running",
+            Step = step,
+            State = state,
             UpdatedAt = DateTimeOffset.UtcNow,
-        };
-        await UploadAsync($"publishes/{publishId}/status.json", status, cancellationToken);
-    }
+        }, cancellationToken);
 
     public async Task<IReadOnlyList<PublishLedger>> ListLedgersAsync(CancellationToken cancellationToken)
     {
