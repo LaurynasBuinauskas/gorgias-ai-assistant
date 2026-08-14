@@ -117,8 +117,10 @@ def to_policy_text(doc: StagedDoc) -> tuple[str, str]:
     body = doc.markdown if title_match else f"# {title}\n\n{doc.markdown}"
 
     front = (f"---\nmarket: {doc.market}\ntopic: {doc.topic}\nexposure: customer\n---\n\n")
-    source_path = (f"staged/policy/{doc.market}/{doc.topic}/"
-                   + re.sub(r"\.docx$", ".md", doc.file_name, flags=re.I))
+    # Named by topic, not by the uploaded file: the tail of this path is what an agent sees
+    # in the panel's "Based on" row, and re-uploading the same slot must produce the same
+    # chunk ids so a correction is an in-place replacement rather than a duplicate.
+    source_path = f"staged/policy/{doc.market}/{doc.topic}.md"
     return source_path, front + body
 
 
