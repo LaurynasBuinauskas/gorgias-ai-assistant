@@ -41,6 +41,15 @@ DRAFTS_CONTAINER = "knowledge-drafts"
 
 HEADING = re.compile(r"^#\s+(.+)$", re.M)
 
+# The redaction patterns were built for customer exchanges, where any identifier is a leak.
+# Published policy legitimately contains the company's own contact identity — its links,
+# its return address, format examples — so those kinds are noise here, not findings. What
+# remains meaningful for policy: payment identifiers, phone numbers, and email addresses
+# that are not the company's own. Measured, not guessed: the first run of this validator
+# blocked the currently live DE policy on its own support email and returns address.
+POLICY_IRRELEVANT_KINDS = frozenset({"LINK", "ADDRESS", "POSTCODE", "ORDER", "TRACKING"})
+COMPANY_EMAIL_DOMAINS = ("timeresistance.com", "timeresistance.de")
+
 
 @dataclass(frozen=True)
 class StagedDoc:
@@ -135,7 +144,16 @@ def validate(doc: StagedDoc) -> list[ValidationFinding]:
         flag("too-short", "The document is shorter than a policy paragraph — is it the "
                           "right file?")
 
+    seen: set[tuple[str, str]] = set()
     for finding in residual_identifiers(text):
+        if finding.kind in POLICY_IRRELEVANT_KINDS:
+            continue
+        if finding.kind == "EMAIL" and finding.value.lower().rsplit("@", 1)[-1].rstrip(
+                ".") in COMPANY_EMAIL_DOMAINS:
+            continue
+        if (finding.kind, finding.value) in seen:
+            continue
+        seen.add((finding.kind, finding.value))
         flag("pii", f"Personal data must not appear in published policy — {finding.kind}: "
                     f"\"{finding.value}\"")
 

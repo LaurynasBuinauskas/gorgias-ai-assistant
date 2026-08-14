@@ -67,10 +67,21 @@ def main() -> int:
     check("a refusal of a discount passes",
           validate(doc(POLICY_TEXT + " We are unable to offer a 60% discount in any case."))
           == [])
+    # The company's own contact identity is policy content, not a leak — the first live run
+    # blocked the real DE policy on exactly these.
+    check("the company's own email and links pass",
+          validate(doc(POLICY_TEXT + " Write to kundenservice@timeresistance.com or see "
+                                     "[returns](https://timeresistance.de/pages/returns)."))
+          == [])
 
     print("\n== validation blocks what must never reach a draft ==")
     pii = validate(doc(POLICY_TEXT + " Contact jane.doe@example.com with questions."))
-    check("an email address is flagged as pii", any(f.kind == "pii" for f in pii))
+    check("a non-company email address is flagged as pii", any(f.kind == "pii" for f in pii))
+
+    repeated = validate(doc(
+        POLICY_TEXT + " Contact jane.doe@example.com now. Again: jane.doe@example.com."))
+    check("repeated findings are reported once",
+          len([f for f in repeated if f.kind == "pii"]) == 1)
 
     code = validate(doc(POLICY_TEXT + " Use code SUMMER25 at checkout."))
     check("a promo-code shape is flagged",
