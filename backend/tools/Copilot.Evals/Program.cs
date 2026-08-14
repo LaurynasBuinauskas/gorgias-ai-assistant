@@ -9,7 +9,12 @@ using OpenAI;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
+// One class, or several: `--class market,internal-leakage,smoke` is how the publish gate
+// runs exactly the content-sensitive classes in a single invocation.
 var caseFilter = Argument("--class");
+var classFilter = caseFilter?
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .ToHashSet(StringComparer.OrdinalIgnoreCase);
 var outputPath = Argument("--out") ?? "eval-report.md";
 
 // Tracks production, which has run exemplars at 3 since 2026-08-03. It is deliberately not
@@ -58,7 +63,7 @@ if (Environment.GetCommandLineArgs().Contains("--sweep-corpus"))
     return sweep.Findings.Count == 0 ? 0 : 1;
 }
 
-var cases = LoadCases(Path.Combine(root, "cases"), caseFilter);
+var cases = LoadCases(Path.Combine(root, "cases"), classFilter);
 if (cases.Count == 0)
 {
     Console.Error.WriteLine("No cases found. Expected YAML under cases/.");
@@ -92,7 +97,7 @@ if (Environment.GetCommandLineArgs().Contains("--audit"))
 }
 
 Console.WriteLine($"Running {cases.Count} case(s)"
-                  + (caseFilter is null ? "" : $" in class '{caseFilter}'"));
+                  + (caseFilter is null ? "" : $" in class(es) '{caseFilter}'"));
 
 var openAiKey = Secret("openai-apikey");
 var searchKey = Secret("search-adminkey");
@@ -202,7 +207,7 @@ static string? Argument(string name)
     return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
 }
 
-static List<EvalCase> LoadCases(string directory, string? classFilter)
+static List<EvalCase> LoadCases(string directory, IReadOnlySet<string>? classFilter)
 {
     if (!Directory.Exists(directory))
     {
@@ -236,7 +241,7 @@ static List<EvalCase> LoadCases(string directory, string? classFilter)
         }
 
         testCase.SourcePath = path;
-        if (classFilter is null || string.Equals(testCase.Class, classFilter, StringComparison.OrdinalIgnoreCase))
+        if (classFilter is null || classFilter.Contains(testCase.Class))
         {
             cases.Add(testCase);
         }
