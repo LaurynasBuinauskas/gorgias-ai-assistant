@@ -1,0 +1,165 @@
+name: Publish policy
+
+# The execution half of client policy self-service (docs/policy-upload-plan.md): the API
+# triggers this with the staged blobs to publish; everything here is the same tooling a
+# developer runs by hand. Drafting never depends on this workflow — only publishing does.
+#
+# Flow: build a staging snapshot index → content validation (exit 2 blocks) → eval gate
+# (market separation, internal leakage, smoke) against the snapshot → on green, apply the
+# same content to the live index in place (idempotent, no restart) → ledger + status blobs.
+# A rollback is a publish of the previous ledger's blob set, still fully gated.
+on:
+  workflow_dispatch:
+    inputs:
+      publishId:
+        description: Lowercase id minted by the caller; names the snapshot index
+        required: true
+      blobs:
+        description: JSON array of staged blob names in knowledge-drafts
+        required: true
+      publishedBy:
+        description: Attribution recorded in the ledger
+        required: true
+      mode:
+        description: publish or rollback (labelling only — both paths are gated)
+        required: false
+        default: publish
+
+env:
+  SEARCH_ADMINKEY: ${{ secrets.SEARCH_ADMINKEY }}
+  OPENAI_APIKEY: ${{ secrets.OPENAI_APIKEY }}
+  STORAGE_CONNECTION: ${{ secrets.STORAGE_CONNECTION }}
+  # The eval runner reads these spellings.
+  SEARCH_ADMIN_KEY: ${{ secrets.SEARCH_ADMINKEY }}
+  OPENAI_API_KEY: ${{ secrets.OPENAI_APIKEY }}
+  SNAPSHOT: knowledge-stage-${{ inputs.publishId }}
+  STATUS_PREFIX: publishes/${{ inputs.publishId }}
+
+jobs:
+  publish:
+    name: Gate against a snapshot, then apply in place
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: pip install -r tools/ingest/requirements.txt
+
+      - name: Status helper
+        run: |
+          cat > /tmp/status.sh <<'EOF'
+          status() {
+            printf '{"publishId":"%s","step":"%s","state":"%s","detail":%s,"updatedAt":"%s"}' \
+              "${{ inputs.publishId }}" "$1" "$2" "${3:-null}" "$(date -u +%FT%TZ)" > /tmp/status.json
+            az storage blob upload --connection-string "$STORAGE_CONNECTION" \
+              -c knowledge-versions -n "$STATUS_PREFIX/status.json" \
+              -f /tmp/status.json --overwrite --only-show-errors
+          }
+          EOF
+          echo "helper written"
+
+      - name: Build the staging snapshot
+        id: snapshot
+        run: |
+          source /tmp/status.sh
+          status building-snapshot running
+          ARGS=$(echo '${{ inputs.blobs }}' | jq -r '.[] | @sh "--staged \(.)"' | tr '\n' ' ')
+          set +e
+          eval python tools/ingest/ingest.py --index "$SNAPSHOT" $ARGS --report report.json
+          CODE=$?
+          set -e
+          if [ "$CODE" = "2" ]; then
+            DETAIL=$(jq -c '.findings' report.json)
+            status blocked-by-validation failed "$DETAIL"
+            az storage blob upload --connection-string "$STORAGE_CONNECTION" \
+              -c knowledge-versions -n "$STATUS_PREFIX/validation-report.json" \
+              -f report.json --overwrite --only-show-errors
+            echo "::error::Validation findings block this publish; report uploaded"
+            exit 1
+          elif [ "$CODE" != "0" ]; then
+            status building-snapshot failed
+            exit "$CODE"
+          fi
+          az storage blob upload --connection-string "$STORAGE_CONNECTION" \
+            -c knowledge-versions -n "$STATUS_PREFIX/validation-report.json" \
+            -f report.json --overwrite --only-show-errors
+
+      - name: Eval gate against the snapshot
+        run: |
+          source /tmp/status.sh
+          status gating running
+          set +e
+          dotnet run --project backend/tools/Copilot.Evals -c Release -- \
+            --class market,internal-leakage,smoke --knowledge-index "$SNAPSHOT" \
+            --out gate-report.md
+          CODE=$?
+          set -e
+          az storage blob upload --connection-string "$STORAGE_CONNECTION" \
+            -c knowledge-versions -n "$STATUS_PREFIX/gate-report.md" \
+            -f gate-report.md --overwrite --only-show-errors
+          if [ "$CODE" != "0" ]; then
+            status gate-failed failed
+            echo "::error::The eval gate is red against the staged corpus; report uploaded"
+            exit 1
+          fi
+
+      - name: Apply the gated content to the live index
+        run: |
+          source /tmp/status.sh
+          status applying running
+          ARGS=$(echo '${{ inputs.blobs }}' | jq -r '.[] | @sh "--staged \(.)"' | tr '\n' ' ')
+          eval python tools/ingest/ingest.py --index knowledge-v1 $ARGS --report apply-report.json
+
+      - name: Mark blobs, write the ledger, retire old snapshots
+        run: |
+          source /tmp/status.sh
+          echo '${{ inputs.blobs }}' > /tmp/blobs.json
+          PREVIOUS=$(az storage blob download --connection-string "$STORAGE_CONNECTION" \
+            -c knowledge-versions -n publishes/latest.json --no-progress -f /dev/stdout \
+            --only-show-errors 2>/dev/null || echo '{}')
+          python - <<'EOF'
+          import json, os, datetime
+          from azure.storage.blob import ContainerClient
+          connection = os.environ["STORAGE_CONNECTION"]
+          blobs = json.load(open("/tmp/blobs.json"))
+          now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+          drafts = ContainerClient.from_connection_string(connection, "knowledge-drafts")
+          for name in blobs:
+              client = drafts.get_blob_client(name)
+              metadata = client.get_blob_properties().metadata or {}
+              metadata.update({"publishId": os.environ["PUBLISH_ID"], "publishedAt": now})
+              client.set_blob_metadata(metadata)
+
+          ledger = {
+              "publishId": os.environ["PUBLISH_ID"], "mode": os.environ["MODE"],
+              "publishedBy": os.environ["PUBLISHED_BY"], "publishedAt": now,
+              "blobs": blobs, "snapshotIndex": os.environ["SNAPSHOT"],
+          }
+          versions = ContainerClient.from_connection_string(connection, "knowledge-versions")
+          data = json.dumps(ledger, indent=2).encode()
+          versions.upload_blob(f"{os.environ['STATUS_PREFIX']}/ledger.json", data, overwrite=True)
+          versions.upload_blob("publishes/latest.json", data, overwrite=True)
+          EOF
+          PREV_SNAPSHOT=$(echo "$PREVIOUS" | jq -r '.snapshotIndex // empty')
+          for IDX in $(curl -s "https://gorgias-assistant-search.search.windows.net/indexes?api-version=2024-07-01&\$select=name" -H "api-key: $SEARCH_ADMINKEY" | jq -r '.value[].name' | grep '^knowledge-stage-' || true); do
+            if [ "$IDX" != "$SNAPSHOT" ] && [ "$IDX" != "$PREV_SNAPSHOT" ]; then
+              curl -s -X DELETE "https://gorgias-assistant-search.search.windows.net/indexes/$IDX?api-version=2024-07-01" -H "api-key: $SEARCH_ADMINKEY"
+              echo "retired snapshot $IDX"
+            fi
+          done
+          status published succeeded
+        env:
+          PUBLISH_ID: ${{ inputs.publishId }}
+          MODE: ${{ inputs.mode }}
+          PUBLISHED_BY: ${{ inputs.publishedBy }}
+
+      - name: Report failure to the status blob
+        if: failure()
+        run: |
+          source /tmp/status.sh 2>/dev/null || true
+          status workflow failed || true

@@ -66,6 +66,13 @@ class Document:
 
 
 def secret(name: str) -> str:
+    # Environment first, Key Vault via the CLI second — same contract as the eval runner,
+    # so CI can pass repository secrets without an Azure login on the runner.
+    import os
+    from_env = os.environ.get(name.replace("-", "_").upper())
+    if from_env:
+        return from_env
+
     az = shutil.which("az")
     if az is None:
         raise SystemExit("the Azure CLI ('az') is not on PATH")
