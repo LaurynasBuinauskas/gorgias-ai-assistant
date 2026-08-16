@@ -71,6 +71,20 @@ public sealed class BlobPolicyDraftStore(IOptions<PolicyUploadOptions> options) 
         return [.. drafts.OrderByDescending(d => d.UploadedAt)];
     }
 
+    public async Task<string?> ReadTextAsync(string blobName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var download = await _container.GetBlobClient(blobName)
+                .DownloadContentAsync(cancellationToken);
+            return download.Value.Content.ToString();
+        }
+        catch (Azure.RequestFailedException error) when (error.Status == 404)
+        {
+            return null;
+        }
+    }
+
     private static string DecodeUploader(string encoded)
     {
         try

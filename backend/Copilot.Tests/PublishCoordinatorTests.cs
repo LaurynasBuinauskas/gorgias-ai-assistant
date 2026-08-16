@@ -174,6 +174,35 @@ public sealed class PublishCoordinatorTests
     }
 
     [Fact]
+    public async Task ValidateRunsTheWorkflowInValidateModeUnderTheSameLock()
+    {
+        _drafts.Add("DE/returns/one.md");
+        var coordinator = Coordinator();
+
+        var check = await coordinator.StartValidateAsync(
+            ["DE/returns/one.md"], "Rasa", CancellationToken.None);
+
+        Assert.NotNull(check.PublishId);
+        Assert.Equal("validate", Assert.Single(_trigger.Calls).Mode);
+
+        // The lock is shared: a publish during a check is refused, one idea at a time.
+        var publish = await coordinator.StartPublishAsync(
+            ["DE/returns/one.md"], "Rasa", CancellationToken.None);
+        Assert.Null(publish.PublishId);
+        Assert.Contains(check.PublishId!, publish.Refusal);
+    }
+
+    [Fact]
+    public async Task ValidateRefusesUnstagedBlobs()
+    {
+        var check = await Coordinator().StartValidateAsync(
+            ["DE/returns/ghost.md"], "Rasa", CancellationToken.None);
+
+        Assert.Null(check.PublishId);
+        Assert.Empty(_trigger.Calls);
+    }
+
+    [Fact]
     public async Task RollbackWithNoHistoryIsRefused()
     {
         var decision = await Coordinator().StartRollbackAsync("Rasa", CancellationToken.None);
@@ -212,6 +241,9 @@ public sealed class PublishCoordinatorTests
 
         public Task<IReadOnlyList<PolicyDraft>> ListAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<PolicyDraft>>(_drafts);
+
+        public Task<string?> ReadTextAsync(string blobName, CancellationToken ct) =>
+            Task.FromResult<string?>(null);
     }
 
     private sealed class FakeState : IPublishStateStore

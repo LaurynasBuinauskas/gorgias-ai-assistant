@@ -77,6 +77,28 @@ describe('admin api client', () => {
     expect(result).toMatchObject({ ok: false, kind: 'network' });
   });
 
+  it('parses the current-policy payload and drops malformed documents', async () => {
+    mockJson(200, {
+      v: 1,
+      markets: ['GLOBAL', 'DE', 42],
+      documents: [
+        { sourcePath: 'knowledge/policy/DE/returns.md', market: 'DE', topic: 'returns', chunks: 3 },
+        { broken: true },
+      ],
+    });
+
+    const { getCurrent } = await import('./api');
+    const result = await getCurrent('token');
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.markets).toEqual(['GLOBAL', 'DE']);
+      expect(result.value.documents).toEqual([
+        { sourcePath: 'knowledge/policy/DE/returns.md', market: 'DE', topic: 'returns', chunks: 3 },
+      ]);
+    }
+  });
+
   it('parses a publish status with findings attached', async () => {
     mockJson(200, {
       v: 1,

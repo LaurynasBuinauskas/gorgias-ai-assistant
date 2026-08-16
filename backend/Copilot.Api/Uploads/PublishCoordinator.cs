@@ -42,6 +42,28 @@ public sealed class PublishCoordinator(
     }
 
     /// <summary>
+    /// Runs conversion and content validation on staged uploads without touching any index —
+    /// the pre-publish check. It shares the one-at-a-time lock deliberately: "the system is
+    /// busy checking or publishing" is one idea for the person at the page, not two.
+    /// </summary>
+    public async Task<PublishDecision> StartValidateAsync(
+        IReadOnlyList<string> blobs,
+        string requestedBy,
+        CancellationToken cancellationToken)
+    {
+        if (blobs.Count == 0)
+        {
+            return PublishDecision.Refused("Select a staged upload to check.");
+        }
+
+        var staged = (await drafts.ListAsync(cancellationToken)).Select(d => d.BlobName).ToHashSet();
+        var missing = blobs.Where(b => !staged.Contains(b)).ToList();
+        return missing.Count > 0
+            ? PublishDecision.Refused($"Not in staging: {string.Join(", ", missing)}")
+            : await StartAsync(blobs, requestedBy, "validate", cancellationToken);
+    }
+
+    /// <summary>
     /// Restores the state before the newest ledger entry: the previous publish's blob set,
     /// or the pure git tree when there is nothing earlier. Still fully gated — a rollback
     /// is a publish of older content, not a bypass.

@@ -24,6 +24,7 @@ public static class PolicyUploadExtensions
         services.AddSingleton<IPublishTrigger, GitHubWorkflowTrigger>();
         services.AddSingleton<IPublishStateStore, BlobPublishStateStore>();
         services.AddSingleton<PublishCoordinator>();
+        services.AddSingleton<PolicyCatalog>();
         return services;
     }
 }

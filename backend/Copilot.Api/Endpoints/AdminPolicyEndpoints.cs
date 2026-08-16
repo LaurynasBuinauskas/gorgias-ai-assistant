@@ -73,6 +73,64 @@ public static class AdminPolicyEndpoints
             return Results.Ok(new { v = 1, drafts = drafts.Select(PolicyDraftV1.From) });
         });
 
+        app.MapGet("/v1/admin/policy/current", async (
+            PolicyCatalog catalog,
+            IOptions<PolicyUploadOptions> options,
+            CancellationToken cancellationToken) =>
+        {
+            var documents = await catalog.ListCurrentAsync(cancellationToken);
+            return Results.Ok(new
+            {
+                v = 1,
+                markets = options.Value.Markets,
+                documents = documents.Select(d => new
+                {
+                    sourcePath = d.SourcePath,
+                    market = d.Market,
+                    topic = d.Topic,
+                    chunks = d.Chunks,
+                }),
+            });
+        });
+
+        // Query-string rather than a route segment because blob names contain slashes.
+        app.MapGet("/v1/admin/policy/file-content", async (
+            string blob,
+            IPolicyDraftStore store,
+            CancellationToken cancellationToken) =>
+        {
+            if (blob.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
+            {
+                return Results.BadRequest(new
+                {
+                    message = "Word files are shown after a check runs the conversion — "
+                              + "use Check this upload.",
+                });
+            }
+
+            var content = await store.ReadTextAsync(blob, cancellationToken);
+            return content is null
+                ? Results.NotFound()
+                : Results.Ok(new { v = 1, blob, content });
+        });
+
+        app.MapPost("/v1/admin/policy/validate", async (
+            PublishRequestV1? request,
+            PublishCoordinator coordinator,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null)
+            {
+                return Results.BadRequest(new { message = "Send { blobs, publishedBy }." });
+            }
+
+            var decision = await coordinator.StartValidateAsync(
+                request.Blobs, request.PublishedBy, cancellationToken);
+            return decision.PublishId is null
+                ? Results.Json(new { message = decision.Refusal }, statusCode: StatusCodes.Status409Conflict)
+                : Results.Ok(new { v = 1, publishId = decision.PublishId });
+        });
+
         app.MapPost("/v1/admin/policy/publish", async (
             PublishRequestV1? request,
             PublishCoordinator coordinator,
@@ -113,9 +171,10 @@ public static class AdminPolicyEndpoints
                 return Results.NotFound();
             }
 
-            // The findings ride along on a validation block so the panel can show the
-            // uploader exactly why nothing happened, without a second round trip.
-            var validation = status.Step == "blocked-by-validation"
+            // The findings ride along whenever the workflow produced a report — a validation
+            // block explains why nothing happened, a completed check shows what it found —
+            // so the page never needs a second round trip.
+            var validation = status.Step is "blocked-by-validation" or "validate-complete"
                 ? await state.ReadValidationReportAsync(publishId, cancellationToken)
                 : null;
             return Results.Ok(new { v = 1, status, validation });

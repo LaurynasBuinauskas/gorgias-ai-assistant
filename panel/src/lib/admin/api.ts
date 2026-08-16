@@ -48,6 +48,18 @@ export type PublishLedger = {
   readonly snapshotIndex: string;
 };
 
+export type PolicyDocument = {
+  readonly sourcePath: string;
+  readonly market: string;
+  readonly topic: string;
+  readonly chunks: number;
+};
+
+export type CurrentPolicy = {
+  readonly markets: readonly string[];
+  readonly documents: readonly PolicyDocument[];
+};
+
 export async function listFiles(token: string): Promise<ApiResult<AdminDraft[]>> {
   const result = await request(token, '/v1/admin/policy/files');
   if (!result.ok) return result;
@@ -74,6 +86,69 @@ export async function uploadFile(
   if (!result.ok) return result;
   const draft = parseDraft(result.value);
   return draft ? { ok: true, value: draft } : unexpected('The upload reply was unreadable.');
+}
+
+export async function getCurrent(token: string): Promise<ApiResult<CurrentPolicy>> {
+  const result = await request(token, '/v1/admin/policy/current');
+  if (!result.ok) return result;
+  const record = asRecord(result.value);
+  const markets = Array.isArray(record?.markets)
+    ? record.markets.filter((m): m is string => typeof m === 'string')
+    : [];
+  const rows = record?.documents;
+  if (!Array.isArray(rows)) {
+    return unexpected('The current-policy list came back in an unknown shape.');
+  }
+  return {
+    ok: true,
+    value: {
+      markets,
+      documents: rows.flatMap((entry) => {
+        const document = asRecord(entry);
+        return document &&
+          typeof document.sourcePath === 'string' &&
+          typeof document.market === 'string'
+          ? [
+              {
+                sourcePath: document.sourcePath,
+                market: document.market,
+                topic: typeof document.topic === 'string' ? document.topic : '',
+                chunks: typeof document.chunks === 'number' ? document.chunks : 0,
+              },
+            ]
+          : [];
+      }),
+    },
+  };
+}
+
+export async function getFileContent(token: string, blobName: string): Promise<ApiResult<string>> {
+  const result = await request(
+    token,
+    `/v1/admin/policy/file-content?blob=${encodeURIComponent(blobName)}`,
+  );
+  if (!result.ok) return result;
+  const content = asRecord(result.value)?.content;
+  return typeof content === 'string'
+    ? { ok: true, value: content }
+    : unexpected('The file content was unreadable.');
+}
+
+export async function startValidate(
+  token: string,
+  blobs: readonly string[],
+  requestedBy: string,
+): Promise<ApiResult<string>> {
+  const result = await request(token, '/v1/admin/policy/validate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ v: 1, blobs, publishedBy: requestedBy }),
+  });
+  if (!result.ok) return result;
+  const publishId = asRecord(result.value)?.publishId;
+  return typeof publishId === 'string'
+    ? { ok: true, value: publishId }
+    : unexpected('The check reply carried no id.');
 }
 
 export async function startPublish(

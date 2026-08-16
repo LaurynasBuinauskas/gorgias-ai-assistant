@@ -62,7 +62,29 @@ jobs:
           EOF
           echo "helper written"
 
+      - name: Validate only — the pre-publish check
+        if: inputs.mode == 'validate'
+        run: |
+          source /tmp/status.sh
+          status validating running
+          ARGS=$(echo '${{ inputs.blobs }}' | jq -r '.[] | @sh "--staged \(.)"' | tr '\n' ' ')
+          set +e
+          eval python tools/ingest/ingest.py --validate-only $ARGS --report report.json
+          CODE=$?
+          set -e
+          # Exit 2 is findings — the check's job, not a failure of the run.
+          if [ "$CODE" != "0" ] && [ "$CODE" != "2" ]; then
+            status validating failed
+            exit "$CODE"
+          fi
+          az storage blob upload --connection-string "$STORAGE_CONNECTION" \
+            -c knowledge-versions -n "$STATUS_PREFIX/validation-report.json" \
+            -f report.json --overwrite --only-show-errors
+          DETAIL=$(jq -c '.findings' report.json)
+          status validate-complete succeeded "$DETAIL"
+
       - name: Build the staging snapshot
+        if: inputs.mode != 'validate'
         id: snapshot
         run: |
           source /tmp/status.sh
@@ -89,6 +111,7 @@ jobs:
             -f report.json --overwrite --only-show-errors
 
       - name: Eval gate against the snapshot
+        if: inputs.mode != 'validate'
         run: |
           source /tmp/status.sh
           status gating running
@@ -108,6 +131,7 @@ jobs:
           fi
 
       - name: Apply the gated content to the live index
+        if: inputs.mode != 'validate'
         run: |
           source /tmp/status.sh
           status applying running
@@ -115,6 +139,7 @@ jobs:
           eval python tools/ingest/ingest.py --index knowledge-v1 $ARGS --report apply-report.json
 
       - name: Mark blobs, write the ledger, retire old snapshots
+        if: inputs.mode != 'validate'
         run: |
           source /tmp/status.sh
           echo '${{ inputs.blobs }}' > /tmp/blobs.json

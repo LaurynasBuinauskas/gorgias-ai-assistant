@@ -303,6 +303,9 @@ def main() -> int:
                              "Each staged (market, topic) supersedes its git-managed policy")
     parser.add_argument("--report", default=None,
                         help="write the validation report JSON here")
+    parser.add_argument("--validate-only", action="store_true",
+                        help="convert, validate and report the staged uploads, then stop "
+                             "before anything touches an index — the pre-publish check")
     args = parser.parse_args()
 
     staged_docs = []
@@ -332,6 +335,10 @@ def main() -> int:
             print(f"  [{finding.kind}] {finding.blob_name}: {finding.message}",
                   file=sys.stderr)
         return 2
+
+    if args.validate_only:
+        print("validate-only: clean; nothing was written")
+        return 0
 
     if not documents:
         print("error: no documents found under knowledge/", file=sys.stderr)
