@@ -1,4 +1,5 @@
 using Azure;
+using Azure.Identity;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
 using Copilot.Knowledge;
@@ -16,10 +17,15 @@ public sealed record PolicyDocument(string SourcePath, string Market, string Top
 /// </summary>
 public sealed class PolicyCatalog(IOptions<KnowledgeOptions> options)
 {
-    private readonly SearchClient _client = new(
-        new Uri(options.Value.Endpoint),
-        options.Value.IndexName,
-        new AzureKeyCredential(options.Value.ApiKey));
+    // Same credential fallback as AzureSearchKnowledgeStore: production has no Search key
+    // in configuration — the App Service's managed identity is the credential — while local
+    // and CI runs pass a key. The first deploy of this class proved the mismatch with a 500.
+    private readonly SearchClient _client = string.IsNullOrWhiteSpace(options.Value.ApiKey)
+        ? new SearchClient(
+            new Uri(options.Value.Endpoint), options.Value.IndexName, new DefaultAzureCredential())
+        : new SearchClient(
+            new Uri(options.Value.Endpoint), options.Value.IndexName,
+            new AzureKeyCredential(options.Value.ApiKey));
 
     public async Task<IReadOnlyList<PolicyDocument>> ListCurrentAsync(
         CancellationToken cancellationToken)
